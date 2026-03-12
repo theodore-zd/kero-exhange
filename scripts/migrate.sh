@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_DIR="$ROOT_DIR/"
+MIGRATIONS_DIR="$ROOT_DIR/migrations"
 POSTGRES_ENV="$ROOT_DIR/postgres.env"
 
 if ! command -v goose >/dev/null 2>&1; then
@@ -13,8 +13,9 @@ if ! command -v goose >/dev/null 2>&1; then
 fi
 
 if [[ -f "$POSTGRES_ENV" ]]; then
-  # shellcheck disable=SC1090
+  set -a
   source "$POSTGRES_ENV"
+  set +a
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
@@ -26,4 +27,4 @@ fi
 command="${1:-up}"
 shift || true
 
-exec goose -dir "$BACKEND_DIR/migrations" postgres "$DATABASE_URL" "$command" "$@"
+exec goose -dir "$MIGRATIONS_DIR" postgres "$DATABASE_URL" "$command" "$@"

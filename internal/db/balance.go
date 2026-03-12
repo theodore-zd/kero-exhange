@@ -24,57 +24,6 @@ type BalanceFilter struct {
 	CurrencyID uuid.UUID
 }
 
-func GetBalanceByWalletAndCurrency(ctx context.Context, pool *pgxpool.Pool, walletID, currencyID uuid.UUID) (*Balance, error) {
-	query := `
-		SELECT uuid, wallet_id, currency_id, balance, updated_at
-		FROM balances
-		WHERE wallet_id = $1 AND currency_id = $2
-	`
-	var b Balance
-	err := pool.QueryRow(ctx, query, walletID, currencyID).Scan(
-		&b.UUID,
-		&b.WalletID,
-		&b.CurrencyID,
-		&b.Balance,
-		&b.UpdatedAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get balance by wallet and currency: %w", err)
-	}
-	return &b, nil
-}
-
-type UpsertBalanceParams struct {
-	WalletID   uuid.UUID
-	CurrencyID uuid.UUID
-	Amount     decimal.Decimal
-}
-
-func UpsertBalance(ctx context.Context, pool *pgxpool.Pool, params UpsertBalanceParams) (*Balance, error) {
-	query := `
-		INSERT INTO balances (wallet_id, currency_id, balance)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (wallet_id, currency_id) 
-		DO UPDATE SET balance = balances.balance + EXCLUDED.balance, updated_at = NOW()
-		RETURNING uuid, wallet_id, currency_id, balance, updated_at
-	`
-	var b Balance
-	err := pool.QueryRow(ctx, query, params.WalletID, params.CurrencyID, params.Amount).Scan(
-		&b.UUID,
-		&b.WalletID,
-		&b.CurrencyID,
-		&b.Balance,
-		&b.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("upsert balance: %w", err)
-	}
-	return &b, nil
-}
-
 func GetBalanceByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*Balance, error) {
 	query := `
 		SELECT uuid, wallet_id, currency_id, balance, updated_at
@@ -94,6 +43,29 @@ func GetBalanceByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*B
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get balance by uuid: %w", err)
+	}
+	return &b, nil
+}
+
+func GetBalanceByWalletAndCurrency(ctx context.Context, pool *pgxpool.Pool, walletID, currencyID uuid.UUID) (*Balance, error) {
+	query := `
+		SELECT uuid, wallet_id, currency_id, balance, updated_at
+		FROM balances
+		WHERE wallet_id = $1 AND currency_id = $2
+	`
+	var b Balance
+	err := pool.QueryRow(ctx, query, walletID, currencyID).Scan(
+		&b.UUID,
+		&b.WalletID,
+		&b.CurrencyID,
+		&b.Balance,
+		&b.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get balance by wallet and currency: %w", err)
 	}
 	return &b, nil
 }

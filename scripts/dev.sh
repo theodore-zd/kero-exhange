@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-# Default port
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT=${1:-8090}
 
-cd backend
-go build ./cmd/server -o ./temp/server
-cd ..
+cd "$ROOT_DIR"
 
-sh ./scripts/migrate.sh up
+./scripts/migrate.sh up
 
-cd backend
-PORT=$PORT ./server
+./scripts/build-server.sh
+
+export PORT
+exec ./bin/kero-server

@@ -124,10 +124,10 @@ DATA_DIR=$DATA_DIR
 DATABASE_URL=postgresql://$POSTGRES_USER:$ENCODED_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable
 
 # Goose Database Migrations (for CLI usage)
-# Use these with goose CLI: goose -dir ./backend/migrations postgres "\$DATABASE_URL" up
+# Use these with goose CLI: goose -dir ./migrations postgres "\$DATABASE_URL" up
 GOOSE_DRIVER=postgres
 GOOSE_DBSTRING=\$DATABASE_URL
-GOOSE_MIGRATION_DIR=./backend/migrations
+GOOSE_MIGRATION_DIR=./migrations
 EOF
 
 log_success "postgres.env file created"
@@ -219,7 +219,7 @@ if docker container inspect "$CONTAINER_NAME" 2>/dev/null | grep -q '"Status": "
     echo ""
     log_info "Next Steps:"
     echo "  1. Add DATABASE_URL to .env file (from postgres.env)"
-    echo "  2. Run migrations: cd backend && goose -dir migrations postgres \\\"\$DATABASE_URL\\\" up"
+    echo "  2. Run migrations: goose -dir migrations postgres \\\"\$DATABASE_URL\\\" up"
     echo ""
     log_info "Container Management:"
     echo "  Stop:  docker stop $CONTAINER_NAME"

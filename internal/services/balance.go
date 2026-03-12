@@ -42,21 +42,6 @@ type IssueCurrencyResult struct {
 }
 
 func (s *BalanceService) IssueCurrency(ctx context.Context, params IssueCurrencyParams) (*IssueCurrencyResult, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	balance, err := db.UpsertBalance(ctx, s.pool, db.UpsertBalanceParams{
-		WalletID:   params.WalletID,
-		CurrencyID: params.CurrencyID,
-		Amount:     params.Amount,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	transaction, err := db.CreateTransaction(ctx, s.pool, db.CreateTransactionParams{
 		WalletID:   params.WalletID,
 		CurrencyID: params.CurrencyID,
@@ -68,7 +53,8 @@ func (s *BalanceService) IssueCurrency(ctx context.Context, params IssueCurrency
 		return nil, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	balance, err := db.GetBalanceByWalletAndCurrency(ctx, s.pool, params.WalletID, params.CurrencyID)
+	if err != nil {
 		return nil, err
 	}
 
