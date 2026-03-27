@@ -1,0 +1,47 @@
+{{define "title"}}Sign In{{end}}
+
+{{define "content"}}
+<h1>Sign In</h1>
+<form id="signin-form">
+    <div>
+        <label for="passphrase">Secret Passphrase</label>
+        <input type="password" id="passphrase" name="passphrase" required>
+    </div>
+    <button type="submit">Sign In</button>
+</form>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/auth.js"></script>
+<script>
+document.getElementById('signin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const passphrase = document.getElementById('passphrase').value;
+    const errorDiv = document.getElementById('error');
+    
+    try {
+        const response = await fetch('/api/v1/auth/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ passphrase })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            errorDiv.textContent = data.error.message || 'Sign in failed';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        localStorage.setItem('accessToken', data.data.access_token);
+        localStorage.setItem('walletUUID', data.data.wallet_uuid);
+        window.location.href = '/wallets';
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

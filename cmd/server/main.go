@@ -13,6 +13,7 @@ import (
 	"github.com/wispberry-tech/kero-exchange/internal/config"
 	"github.com/wispberry-tech/kero-exchange/internal/db"
 	"github.com/wispberry-tech/kero-exchange/internal/handlers"
+	"github.com/wispberry-tech/kero-exchange/internal/services"
 )
 
 func main() {
@@ -37,8 +38,16 @@ func main() {
 
 	common.LogInfo("Connected to database")
 
+	currencySvc := services.NewCurrencyService(pool)
+	defaultCurrency, err := currencySvc.EnsureDefaultCurrency(ctx, cfg.DefaultCurrencyCode, cfg.DefaultCurrencyName, &cfg.DefaultCurrencyDescription)
+	if err != nil {
+		common.LogError("Failed to ensure default currency", "error", err)
+		os.Exit(1)
+	}
+	common.LogInfo("Default currency ensured", "code", defaultCurrency.Code, "name", defaultCurrency.Name)
+
 	r := chi.NewRouter()
-	handlers.RegisterRoutes(r, pool)
+	handlers.RegisterRoutes(r, pool, cfg)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,

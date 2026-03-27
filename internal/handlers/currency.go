@@ -31,28 +31,20 @@ type CurrencyListResponse struct {
 	Meta PaginationMeta     `json:"meta"`
 }
 
-func (h *CurrencyHandler) RegisterRoutes(r chi.Router) {
-	r.Get("/api/v1/currencies", h.List)
-	r.Get("/api/v1/currencies/{id}", h.Get)
-	r.Get("/api/v1/currencies/code/{code}", h.GetByCode)
-}
-
 func (h *CurrencyHandler) Get(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		common.WriteJSONError(w, http.StatusBadRequest, "INVALID_UUID", "Invalid currency UUID", nil)
+	id, ok := parseUUIDOrError(w, r, "id", "INVALID_UUID", "Invalid currency UUID")
+	if !ok {
 		return
 	}
 
 	currency, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
-		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get currency", nil)
+		handleServiceError(w, err)
 		return
 	}
 
 	if currency == nil {
-		common.WriteJSONError(w, http.StatusNotFound, "NOT_FOUND", "Currency not found", nil)
+		handleNotFoundError(w, "Currency")
 		return
 	}
 
@@ -68,12 +60,12 @@ func (h *CurrencyHandler) GetByCode(w http.ResponseWriter, r *http.Request) {
 
 	currency, err := h.svc.GetByCode(r.Context(), code)
 	if err != nil {
-		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get currency", nil)
+		handleServiceError(w, err)
 		return
 	}
 
 	if currency == nil {
-		common.WriteJSONError(w, http.StatusNotFound, "NOT_FOUND", "Currency not found", nil)
+		handleNotFoundError(w, "Currency")
 		return
 	}
 
@@ -88,6 +80,7 @@ func (h *CurrencyHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.GetAll(r.Context(), params)
 	if err != nil {
+		common.LogError("CurrencyHandler.List failed", "error", err)
 		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list currencies", nil)
 		return
 	}

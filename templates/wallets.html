@@ -1,0 +1,205 @@
+{{define "title"}}Wallets{{end}}
+
+{{define "nav"}}
+<li><a href="/wallets">Wallets</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Wallets</h1>
+<div id="wallets-pagination" class="pagination"></div>
+<div id="wallets-list">
+    <p>Loading...</p>
+</div>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/auth.js"></script>
+<script>
+(function() {
+    const walletsList = document.getElementById('wallets-list');
+    const paginationDiv = document.getElementById('wallets-pagination');
+    const errorDiv = document.getElementById('error');
+    const accessToken = localStorage.getItem('accessToken');
+    const params = new URLSearchParams(window.location.search);
+    let currentPage = Math.max(parseInt(params.get('page') || '0', 10), 1);
+    let currentPageSize = Math.max(parseInt(params.get('page_size') || '0', 10), 20);
+
+    if (!currentPage) {
+        currentPage = 1;
+    }
+    if (!currentPageSize) {
+        currentPageSize = 20;
+    }
+
+    window.addEventListener('load', () => {
+        if (!accessToken) {
+            window.location.href = '/signin';
+            return;
+        }
+        loadWallets(currentPage, currentPageSize);
+    });
+
+    async function loadWallets(page, pageSize) {
+        errorDiv.style.display = 'none';
+        walletsList.innerHTML = '<p>Loading...</p>';
+        const query = new URLSearchParams();
+        query.set('page', page);
+        query.set('page_size', pageSize);
+
+        try {
+            const response = await fetch(`/api/v1/wallets?${query.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 401) {
+                localStorage.removeItem('accessToken');
+                window.location.href = '/signin';
+                return;
+            }
+
+            if (!response.ok) {
+                errorDiv.textContent = data.error?.message || 'Failed to load wallets';
+                errorDiv.style.display = 'block';
+                walletsList.innerHTML = '';
+                paginationDiv.innerHTML = '';
+                return;
+            }
+
+            const wallets = data.data.data;
+            if (wallets.length === 0) {
+                walletsList.innerHTML = '<p class="empty">No wallets found.</p>';
+            } else {
+                walletsList.innerHTML = buildWalletList(wallets);
+                attachToggleHandlers();
+            }
+
+            renderPagination(data.data.meta);
+        } catch (err) {
+            errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
+            walletsList.innerHTML = '';
+            paginationDiv.innerHTML = '';
+        }
+    }
+
+    function buildWalletList(wallets) {
+        let html = '<ul class="wallet-list">';
+        wallets.forEach(wallet => {
+            html += `
+                <li>
+                    <div>
+                        <strong>Wallet UUID:</strong> ${wallet.uuid}
+                    </div>
+                    <div class="text-small">
+                        Created: ${new Date(wallet.created_at).toLocaleString()}
+                    </div>
+                    <div>
+                        <button class="wallet-toggle" data-wallet-id="${wallet.uuid}">Show currencies</button>
+                    </div>
+                    <div id="wallet-balances-${wallet.uuid}" class="wallet-balances" hidden></div>
+                </li>
+            `;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    function attachToggleHandlers() {
+        document.querySelectorAll('.wallet-toggle').forEach(button => {
+            button.addEventListener('click', () => toggleBalances(button));
+        });
+    }
+
+    async function toggleBalances(button) {
+        const walletId = button.dataset.walletId;
+        const container = document.getElementById(`wallet-balances-${walletId}`);
+        if (!container) {
+            return;
+        }
+
+        const isExpanded = container.dataset.expanded === 'true';
+        if (isExpanded) {
+            container.hidden = true;
+            container.dataset.expanded = 'false';
+            button.textContent = 'Show currencies';
+            return;
+        }
+
+        button.textContent = 'Hide currencies';
+        container.hidden = false;
+        container.dataset.expanded = 'true';
+
+        if (container.dataset.loaded === 'true') {
+            return;
+        }
+
+        container.innerHTML = '<p>Loading currencies...</p>';
+        try {
+            const response = await fetch(`/api/v1/balances?wallet_id=${walletId}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                const message = payload.error?.message || 'Failed to load currencies';
+                container.innerHTML = `<p>${message}</p>`;
+                return;
+            }
+
+            container.innerHTML = buildBalanceMarkup(payload.data.data);
+            container.dataset.loaded = 'true';
+        } catch (err) {
+            container.innerHTML = '<p>Network error. Please try again.</p>';
+        }
+    }
+
+    function buildBalanceMarkup(balances) {
+        if (!balances || balances.length === 0) {
+            return '<p class="empty">No currencies found.</p>';
+        }
+        let html = '<ul>';
+        balances.forEach(balance => {
+            const code = balance.currency_code || balance.currency_id;
+            const name = balance.currency_name ? ` (${balance.currency_name})` : '';
+            html += `<li>${code}${name}: ${balance.balance}</li>`;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    function renderPagination(meta) {
+        if (!meta) {
+            paginationDiv.innerHTML = '';
+            return;
+        }
+        const totalPages = meta.total_pages || 1;
+        let html = `Page ${meta.page} of ${totalPages}`;
+        html += ' ';
+        if (meta.page > 1) {
+            html += `<a href="${buildPageLink(meta.page - 1, meta.page_size)}">Prev</a>`;
+        }
+        if (meta.page < totalPages) {
+            if (meta.page > 1) {
+                html += ' | ';
+            }
+            html += `<a href="${buildPageLink(meta.page + 1, meta.page_size)}">Next</a>`;
+        }
+        paginationDiv.innerHTML = html;
+    }
+
+    function buildPageLink(page, pageSize) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page.toString());
+        params.set('page_size', pageSize.toString());
+        return `${window.location.pathname}?${params.toString()}`;
+    }
+})();
+</script>
+{{end}}

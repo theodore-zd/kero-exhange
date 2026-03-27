@@ -1,0 +1,89 @@
+{{define "title"}}Create Currency{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Create Currency</h1>
+<p><a href="/admin/currencies">&larr; Back to Currencies</a></p>
+<div id="alert" class="alert" style="display: none;"></div>
+<form id="create-currency-form">
+    <div>
+        <label for="code">Code *</label>
+        <input type="text" id="code" name="code" required maxlength="8" placeholder="e.g., USD, EUR">
+    </div>
+    <div>
+        <label for="name">Name *</label>
+        <input type="text" id="name" name="name" required placeholder="e.g., US Dollar, Euro">
+    </div>
+    <div>
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="Optional description of the currency"></textarea>
+    </div>
+    <button type="submit">Create Currency</button>
+</form>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+document.getElementById('create-currency-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const adminToken = localStorage.getItem('adminToken');
+    const errorDiv = document.getElementById('error');
+    const alertDiv = document.getElementById('alert');
+
+    const code = document.getElementById('code').value.trim();
+    const name = document.getElementById('name').value.trim();
+    const description = document.getElementById('description').value.trim() || null;
+
+    errorDiv.style.display = 'none';
+    alertDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/v1/admin/currencies', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                code: code,
+                name: name,
+                description: description
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            localStorage.removeItem('adminToken');
+            window.location.href = '/admin/login';
+            return;
+        }
+
+        if (!response.ok) {
+            errorDiv.textContent = data.error?.message || 'Failed to create currency';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        alertDiv.textContent = 'Currency created successfully!';
+        alertDiv.className = 'alert alert-success';
+        alertDiv.style.display = 'block';
+        setTimeout(() => {
+            window.location.href = '/admin/currencies';
+        }, 1500);
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/wispberry-tech/go-common"
 	"github.com/wispberry-tech/kero-exchange/internal/db"
@@ -34,27 +33,20 @@ type TransactionListResponse struct {
 	Meta PaginationMeta        `json:"meta"`
 }
 
-func (h *TransactionHandler) RegisterRoutes(r chi.Router) {
-	r.Get("/api/v1/transactions", h.List)
-	r.Get("/api/v1/transactions/{id}", h.Get)
-}
-
 func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		common.WriteJSONError(w, http.StatusBadRequest, "INVALID_UUID", "Invalid transaction UUID", nil)
+	id, ok := parseUUIDOrError(w, r, "id", "INVALID_UUID", "Invalid transaction UUID")
+	if !ok {
 		return
 	}
 
 	tx, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
-		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get transaction", nil)
+		handleServiceError(w, err)
 		return
 	}
 
 	if tx == nil {
-		common.WriteJSONError(w, http.StatusNotFound, "NOT_FOUND", "Transaction not found", nil)
+		handleNotFoundError(w, "Transaction")
 		return
 	}
 
@@ -97,6 +89,7 @@ func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.GetAll(r.Context(), params, filter)
 	if err != nil {
+		common.LogError("TransactionHandler.List failed", "error", err)
 		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list transactions", nil)
 		return
 	}

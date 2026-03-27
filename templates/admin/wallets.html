@@ -1,0 +1,258 @@
+{{define "title"}}Wallets{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Wallets</h1>
+<p><a href="/admin/wallets/new">Create Wallet</a></p>
+<div id="wallets-pagination" class="pagination"></div>
+<div id="wallets-list">
+    <p>Loading...</p>
+</div>
+<div id="error" class="error" style="display: none;"></div>
+<div id="alert" class="alert" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+(function() {
+    const adminToken = localStorage.getItem('adminToken');
+    const walletsList = document.getElementById('wallets-list');
+    const paginationDiv = document.getElementById('wallets-pagination');
+    const errorDiv = document.getElementById('error');
+    const params = new URLSearchParams(window.location.search);
+    let currentPage = Math.max(parseInt(params.get('page') || '0', 10), 1);
+    let currentPageSize = Math.max(parseInt(params.get('page_size') || '0', 10), 20);
+
+    if (!currentPage) {
+        currentPage = 1;
+    }
+    if (!currentPageSize) {
+        currentPageSize = 20;
+    }
+
+    window.addEventListener('load', () => {
+        if (!adminToken) {
+            window.location.href = '/admin/login';
+            return;
+        }
+        loadWallets(currentPage, currentPageSize);
+    });
+
+    async function loadWallets(page, pageSize) {
+        errorDiv.style.display = 'none';
+        walletsList.innerHTML = '<p>Loading...</p>';
+        const query = new URLSearchParams();
+        query.set('page', page);
+        query.set('page_size', pageSize);
+
+        try {
+            const response = await fetch(`/api/v1/admin/wallets?${query.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 401) {
+                localStorage.removeItem('adminToken');
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            if (!response.ok) {
+                errorDiv.textContent = data.error?.message || 'Failed to load wallets';
+                errorDiv.style.display = 'block';
+                walletsList.innerHTML = '';
+                paginationDiv.innerHTML = '';
+                return;
+            }
+
+            const wallets = data.data.data;
+            if (wallets.length === 0) {
+                walletsList.innerHTML = '<p class="empty">No wallets found.</p>';
+            } else {
+                walletsList.innerHTML = buildWalletList(wallets);
+                attachToggleHandlers();
+            }
+
+            renderPagination(data.data.meta);
+        } catch (err) {
+            errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
+            walletsList.innerHTML = '';
+            paginationDiv.innerHTML = '';
+        }
+    }
+
+    function buildWalletList(wallets) {
+        let html = '<ul class="wallet-list">';
+        wallets.forEach(wallet => {
+            html += `
+                <li>
+                    <div>
+                        <strong>Wallet UUID:</strong> ${wallet.uuid}
+                    </div>
+                    <div class="text-small">
+                        Created: ${new Date(wallet.created_at).toLocaleString()}
+                    </div>
+                    <div class="text-small">
+                        Updated: ${new Date(wallet.updated_at).toLocaleString()}
+                    </div>
+                    <div class="actions">
+                        <a href="/admin/wallets/${wallet.uuid}/regenerate">Regenerate Passphrase</a>
+                        <a href="/admin/wallets/${wallet.uuid}/issue-currency">Issue Currency</a>
+                        <button class="wallet-toggle" data-wallet-id="${wallet.uuid}">Show currencies</button>
+                        <button class="wallet-delete" data-wallet-id="${wallet.uuid}">Delete</button>
+                    </div>
+                    <div id="wallet-balances-${wallet.uuid}" class="wallet-balances" hidden></div>
+                </li>
+            `;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    function attachToggleHandlers() {
+        document.querySelectorAll('.wallet-toggle').forEach(button => {
+            button.addEventListener('click', () => toggleBalances(button));
+        });
+        document.querySelectorAll('.wallet-delete').forEach(button => {
+            button.addEventListener('click', () => deleteWallet(button.dataset.walletId));
+        });
+    }
+
+    async function toggleBalances(button) {
+        const walletId = button.dataset.walletId;
+        const container = document.getElementById(`wallet-balances-${walletId}`);
+        if (!container) {
+            return;
+        }
+
+        const isExpanded = container.dataset.expanded === 'true';
+        if (isExpanded) {
+            container.hidden = true;
+            container.dataset.expanded = 'false';
+            button.textContent = 'Show currencies';
+            return;
+        }
+
+        button.textContent = 'Hide currencies';
+        container.hidden = false;
+        container.dataset.expanded = 'true';
+
+        if (container.dataset.loaded === 'true') {
+            return;
+        }
+
+        container.innerHTML = '<p>Loading currencies...</p>';
+        try {
+            const response = await fetch(`/api/v1/admin/wallets/${walletId}/balances?page=1&page_size=100`, {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+
+            const payload = await response.json();
+            if (!response.ok) {
+                if (response.status === 401) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                const message = payload.error?.message || 'Failed to load currencies';
+                container.innerHTML = `<p>${message}</p>`;
+                return;
+            }
+
+            container.innerHTML = buildBalanceMarkup(payload.data.data);
+            container.dataset.loaded = 'true';
+        } catch (err) {
+            container.innerHTML = '<p>Network error. Please try again.</p>';
+        }
+    }
+
+    function buildBalanceMarkup(balances) {
+        if (!balances || balances.length === 0) {
+            return '<p class="empty">No currencies found.</p>';
+        }
+        let html = '<ul>';
+        balances.forEach(balance => {
+            const code = balance.currency_code || balance.currency_id;
+            const name = balance.currency_name ? ` (${balance.currency_name})` : '';
+            html += `<li>${code}${name}: ${balance.balance}</li>`;
+        });
+        html += '</ul>';
+        return html;
+    }
+
+    async function deleteWallet(uuid) {
+        if (!confirm('Delete this wallet?')) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/v1/admin/wallets/${uuid}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+
+            if (response.ok) {
+                showAlert('Wallet deleted successfully', 'success');
+                loadWallets(currentPage, currentPageSize);
+            } else {
+                showAlert('Failed to delete wallet', 'error');
+            }
+        } catch (err) {
+            showAlert('Network error. Please try again.', 'error');
+        }
+    }
+
+    function renderPagination(meta) {
+        if (!meta) {
+            paginationDiv.innerHTML = '';
+            return;
+        }
+        const totalPages = meta.total_pages || 1;
+        let html = `Page ${meta.page} of ${totalPages}`;
+        html += ' ';
+        if (meta.page > 1) {
+            html += `<a href="${buildPageLink(meta.page - 1, meta.page_size)}">Prev</a>`;
+        }
+        if (meta.page < totalPages) {
+            if (meta.page > 1) {
+                html += ' | ';
+            }
+            html += `<a href="${buildPageLink(meta.page + 1, meta.page_size)}">Next</a>`;
+        }
+        paginationDiv.innerHTML = html;
+    }
+
+    function buildPageLink(page, pageSize) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page.toString());
+        params.set('page_size', pageSize.toString());
+        return `${window.location.pathname}?${params.toString()}`;
+    }
+})();
+
+function showAlert(message, type) {
+    const alertDiv = document.getElementById('alert');
+    alertDiv.textContent = `${type.toUpperCase()}: ${message}`;
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.style.display = 'block';
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 3000);
+}
+</script>
+{{end}}

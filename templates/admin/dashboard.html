@@ -1,0 +1,27 @@
+{{define "title"}}Admin Dashboard{{end}}
+
+{{define "nav"}}
+<a href="/admin/dashboard">Dashboard</a>
+<a href="/admin/providers">Providers</a>
+<a href="/admin/wallets">Wallets</a>
+<a href="/admin/currencies">Currencies</a>
+<a href="#" id="logout">Logout</a>
+{{end}}
+
+{{define "content"}}
+<div>
+    <h1>Admin Dashboard</h1>
+    <div>
+        <h2>Management</h2>
+        <ul>
+            <li><a href="/admin/providers">Providers</a></li>
+            <li><a href="/admin/wallets">Wallets</a></li>
+            <li><a href="/admin/currencies">Currencies</a></li>
+        </ul>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+{{end}}

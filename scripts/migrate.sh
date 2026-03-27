@@ -24,7 +24,10 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
+export GOOSE_DRIVER=postgres
+export GOOSE_DBSTRING="$DATABASE_URL"
+
 command="${1:-up}"
 shift || true
 
-exec goose -dir "$MIGRATIONS_DIR" postgres "$DATABASE_URL" "$command" "$@"
+exec goose -dir "$MIGRATIONS_DIR" "$command"

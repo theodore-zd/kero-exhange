@@ -1,0 +1,169 @@
+{{define "title"}}Currencies{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Currencies</h1>
+<p><a href="/admin/currencies/new">Create Currency</a></p>
+<div id="alert" class="alert" style="display: none;"></div>
+<div id="currencies-pagination" class="pagination"></div>
+<div id="currencies-list">
+    <p>Loading...</p>
+</div>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+(function() {
+    const adminToken = localStorage.getItem('adminToken');
+    const currenciesList = document.getElementById('currencies-list');
+    const paginationDiv = document.getElementById('currencies-pagination');
+    const errorDiv = document.getElementById('error');
+    const params = new URLSearchParams(window.location.search);
+    let currentPage = Math.max(parseInt(params.get('page') || '0', 10), 1);
+    let currentPageSize = Math.max(parseInt(params.get('page_size') || '0', 10), 20);
+
+    if (!currentPage) {
+        currentPage = 1;
+    }
+    if (!currentPageSize) {
+        currentPageSize = 20;
+    }
+
+    window.addEventListener('load', () => {
+        if (!adminToken) {
+            window.location.href = '/admin/login';
+            return;
+        }
+        loadCurrencies(currentPage, currentPageSize);
+    });
+
+    async function loadCurrencies(page, pageSize) {
+        errorDiv.style.display = 'none';
+        currenciesList.innerHTML = '<p>Loading...</p>';
+        const query = new URLSearchParams();
+        query.set('page', page);
+        query.set('page_size', pageSize);
+
+        try {
+            const response = await fetch(`/api/v1/admin/currencies?${query.toString()}`, {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 401) {
+                localStorage.removeItem('adminToken');
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            if (!response.ok) {
+                errorDiv.textContent = data.error?.message || 'Failed to load currencies';
+                errorDiv.style.display = 'block';
+                currenciesList.innerHTML = '';
+                paginationDiv.innerHTML = '';
+                return;
+            }
+
+            if (data.data.data.length === 0) {
+                currenciesList.innerHTML = '<p class="empty">No currencies found.</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>UUID</th><th>Code</th><th>Name</th><th>Description</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+            data.data.data.forEach(currency => {
+                html += `
+                    <tr>
+                        <td>${currency.uuid}</td>
+                        <td><strong>${currency.code}</strong></td>
+                        <td>${currency.name}</td>
+                        <td>${currency.description || ''}</td>
+                        <td>${new Date(currency.created_at).toLocaleString()}</td>
+                        <td class="actions">
+                            <button onclick="deleteCurrency('${currency.uuid}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            currenciesList.innerHTML = html;
+
+            renderPagination(data.data.meta);
+        } catch (err) {
+            errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
+            currenciesList.innerHTML = '';
+            paginationDiv.innerHTML = '';
+        }
+    }
+
+    window.deleteCurrency = async function(uuid) {
+        if (!confirm('Delete this currency?')) {
+            return;
+        }
+        const adminToken = localStorage.getItem('adminToken');
+        const response = await fetch(`/api/v1/admin/currencies/${uuid}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+
+        if (response.ok) {
+            showAlert('Currency deleted successfully', 'success');
+            loadCurrencies(currentPage, currentPageSize);
+        } else {
+            showAlert('Failed to delete currency', 'error');
+        }
+    };
+
+    function showAlert(message, type) {
+        const alertDiv = document.getElementById('alert');
+        alertDiv.textContent = `${type.toUpperCase()}: ${message}`;
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.style.display = 'block';
+        setTimeout(() => {
+            alertDiv.style.display = 'none';
+        }, 3000);
+    }
+
+    function renderPagination(meta) {
+        if (!meta) {
+            paginationDiv.innerHTML = '';
+            return;
+        }
+        const totalPages = meta.total_pages || 1;
+        let html = `Page ${meta.page} of ${totalPages}`;
+        html += ' ';
+        if (meta.page > 1) {
+            html += `<a href="${buildPageLink(meta.page - 1, meta.page_size)}">Prev</a>`;
+        }
+        if (meta.page < totalPages) {
+            if (meta.page > 1) {
+                html += ' | ';
+            }
+            html += `<a href="${buildPageLink(meta.page + 1, meta.page_size)}">Next</a>`;
+        }
+        paginationDiv.innerHTML = html;
+    }
+
+    function buildPageLink(page, pageSize) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page.toString());
+        params.set('page_size', pageSize.toString());
+        return `${window.location.pathname}?${params.toString()}`;
+    }
+})();
+</script>
+{{end}}

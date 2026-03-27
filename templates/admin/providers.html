@@ -1,0 +1,110 @@
+{{define "title"}}Providers{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Providers</h1>
+<p><a href="/admin/providers/new">Create Provider</a></p>
+<div id="alert" class="alert" style="display: none;"></div>
+<div id="providers-list">
+    <p>Loading...</p>
+</div>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+window.addEventListener('load', async () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        window.location.href = '/admin/login';
+        return;
+    }
+
+    const providersList = document.getElementById('providers-list');
+    const errorDiv = document.getElementById('error');
+
+    try {
+        const response = await fetch('/api/v1/admin/providers', {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem('adminToken');
+                window.location.href = '/admin/login';
+                return;
+            }
+            errorDiv.textContent = data.error.message || 'Failed to load providers';
+            errorDiv.style.display = 'block';
+            providersList.innerHTML = '';
+            return;
+        }
+
+        if (data.data.data.length === 0) {
+            providersList.innerHTML = '<p class="empty">No providers found.</p>';
+            return;
+        }
+
+        let html = '<table><thead><tr><th>UUID</th><th>Name</th><th>API Key Hash</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+        data.data.data.forEach(provider => {
+            html += `
+                <tr>
+                    <td>${provider.uuid}</td>
+                    <td>${provider.name}</td>
+                    <td><code>${provider.api_key_hash}</code></td>
+                    <td>${new Date(provider.created_at).toLocaleString()}</td>
+                    <td class="actions">
+                        <a href="/admin/providers/${provider.uuid}/edit-api-key">Edit API Key</a>
+                        <button onclick="deleteProvider('${provider.uuid}')">Delete</button>
+                    </td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        providersList.innerHTML = html;
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+
+window.deleteProvider = async function(uuid) {
+    const adminToken = localStorage.getItem('adminToken');
+    const response = await fetch(`/api/v1/admin/providers/${uuid}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${adminToken}`
+        }
+    });
+
+    if (response.ok) {
+        showAlert('Provider deleted successfully', 'success');
+        window.location.reload();
+    } else {
+        showAlert('Failed to delete provider', 'error');
+    }
+};
+
+function showAlert(message, type) {
+    const alertDiv = document.getElementById('alert');
+    alertDiv.textContent = `${type.toUpperCase()}: ${message}`;
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.style.display = 'block';
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 3000);
+}
+</script>
+{{end}}

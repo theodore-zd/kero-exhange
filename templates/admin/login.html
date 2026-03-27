@@ -1,0 +1,47 @@
+{{define "title"}}Admin Login{{end}}
+
+{{define "content"}}
+<div>
+    <h1>Admin Login</h1>
+    <form id="login-form">
+        <div>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+    <div id="error" style="display: none;"></div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('error');
+
+    try {
+        const response = await fetch('/api/v1/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            errorDiv.textContent = data.error.message || 'Login failed';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        localStorage.setItem('adminToken', data.data.token);
+        window.location.href = '/admin/dashboard';
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

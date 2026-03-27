@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{block "title" .}}Kero Exchange{{end}}</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    {{block "head" .}}{{end}}
+</head>
+<body>
+    {{block "layout" .}}
+    <div class="layout">
+        {{if .ShowSidebar}}
+        <aside class="sidebar">
+            {{block "sidebar" .}}
+            <ul class="sidebar-nav">
+                {{block "nav" .}}
+                <li><a href="/wallets">Wallets</a></li>
+                {{end}}
+            </ul>
+            {{end}}
+        </aside>
+        {{end}}
+        <main class="main-content{{if not .ShowSidebar}} main-content-center{{end}}">
+            {{block "content" .}}{{end}}
+        </main>
+    </div>
+    {{end}}
+
+    {{block "scripts" .}}{{end}}
+</body>
+</html>

@@ -31,3 +31,20 @@ func (s *CurrencyService) GetAll(ctx context.Context, params db.PaginationParams
 func (s *CurrencyService) Create(ctx context.Context, params db.CreateCurrencyParams) (*db.Currency, error) {
 	return db.CreateCurrency(ctx, s.pool, params)
 }
+
+func (s *CurrencyService) EnsureDefaultCurrency(ctx context.Context, code, name string, description *string) (*db.Currency, error) {
+	currency, err := s.GetByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if currency != nil {
+		return currency, nil
+	}
+
+	params := db.CreateCurrencyParams{
+		Code:        code,
+		Name:        name,
+		Description: description,
+	}
+	return s.Create(ctx, params)
+}

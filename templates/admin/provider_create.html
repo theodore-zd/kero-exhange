@@ -1,0 +1,83 @@
+{{define "title"}}Create Provider{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Create Provider</h1>
+<p><a href="/admin/providers">&larr; Back to Providers</a></p>
+
+<form id="create-provider-form">
+    <div>
+        <label for="provider-name">Provider Name</label>
+        <input type="text" id="provider-name" name="name" required>
+    </div>
+    <button type="submit">Create Provider</button>
+</form>
+
+<div id="error" class="error" style="display: none;"></div>
+<div id="result" style="display: none;">
+    <h2>Provider Created</h2>
+    <p><strong>Important:</strong> Save this API key securely. It will not be shown again.</p>
+    <p><strong>Provider UUID:</strong> <span id="created-provider-uuid"></span></p>
+    <p><strong>Provider Name:</strong> <span id="created-provider-name"></span></p>
+    <p><strong>API Key:</strong> <code id="created-provider-api-key"></code></p>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+window.addEventListener('load', () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        window.location.href = '/admin/login';
+        return;
+    }
+});
+
+document.getElementById('create-provider-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const adminToken = localStorage.getItem('adminToken');
+    const name = document.getElementById('provider-name').value;
+    const errorDiv = document.getElementById('error');
+    const resultDiv = document.getElementById('result');
+
+    errorDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/v1/admin/providers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            errorDiv.textContent = data.error.message || 'Failed to create provider';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        document.getElementById('created-provider-uuid').textContent = data.data.uuid;
+        document.getElementById('created-provider-name').textContent = data.data.name;
+        document.getElementById('created-provider-api-key').textContent = data.data.api_key;
+        resultDiv.style.display = 'block';
+        document.getElementById('create-provider-form').reset();
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

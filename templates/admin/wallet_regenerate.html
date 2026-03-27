@@ -1,0 +1,84 @@
+{{define "title"}}Regenerate Wallet Passphrase{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Regenerate Wallet Passphrase</h1>
+<p><a href="/admin/wallets">&larr; Back to Wallets</a></p>
+<p><strong>Wallet UUID:</strong> <code id="wallet-id"></code></p>
+<p>Warning: This will invalidate the current passphrase. The old passphrase will no longer work.</p>
+
+<button id="regenerate-btn">Regenerate</button>
+
+<div id="error" class="error" style="display: none;"></div>
+<div id="result" style="display: none;">
+    <h2>Passphrase Regenerated</h2>
+    <p><strong>Important:</strong> Save this new passphrase securely. It will not be shown again.</p>
+    <p><strong>Wallet UUID:</strong> <span id="regenerated-uuid"></span></p>
+    <p><strong>New Passphrase:</strong> <code id="regenerated-passphrase"></code></p>
+    <p><strong>New Access Token:</strong> <code id="regenerated-access-token"></code></p>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+function getWalletID() {
+    const parts = window.location.pathname.split('/');
+    if (parts.length < 5) {
+        return '';
+    }
+    return parts[3];
+}
+
+window.addEventListener('load', () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        window.location.href = '/admin/login';
+        return;
+    }
+
+    document.getElementById('wallet-id').textContent = getWalletID();
+});
+
+document.getElementById('regenerate-btn').addEventListener('click', async () => {
+    const adminToken = localStorage.getItem('adminToken');
+    const walletID = getWalletID();
+    const errorDiv = document.getElementById('error');
+    const resultDiv = document.getElementById('result');
+
+    errorDiv.style.display = 'none';
+
+    try {
+        const response = await fetch(`/api/v1/admin/wallets/${walletID}/regenerate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            errorDiv.textContent = data.error.message || 'Failed to regenerate passphrase';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        document.getElementById('regenerated-uuid').textContent = data.data.uuid;
+        document.getElementById('regenerated-passphrase').textContent = data.data.passphrase;
+        document.getElementById('regenerated-access-token').textContent = data.data.access_token;
+        resultDiv.style.display = 'block';
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

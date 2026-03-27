@@ -64,6 +64,7 @@ type Transaction struct {
 	Type       TransactionType
 	Reference  *string
 	Timestamp  time.Time
+	DeletedAt  *time.Time
 }
 
 type TransactionFilter struct {
@@ -76,9 +77,9 @@ type TransactionFilter struct {
 
 func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*Transaction, error) {
 	query := `
-		SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp
+		SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp, deleted_at
 		FROM transactions
-		WHERE uuid = $1
+		WHERE uuid = $1 AND deleted_at IS NULL
 	`
 	var t Transaction
 	err := pool.QueryRow(ctx, query, id).Scan(
@@ -89,6 +90,7 @@ func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID)
 		&t.Type,
 		&t.Reference,
 		&t.Timestamp,
+		&t.DeletedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -102,11 +104,11 @@ func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID)
 func GetTransactions(ctx context.Context, pool *pgxpool.Pool, params PaginationParams, filter TransactionFilter) (PaginatedResult[Transaction], error) {
 	params = params.Normalize()
 
-	baseQuery := `SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp FROM transactions`
-	countQuery := `SELECT COUNT(*) FROM transactions`
+	baseQuery := `SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp, deleted_at FROM transactions WHERE deleted_at IS NULL`
+	countQuery := `SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL`
 	args := []any{}
 	argIdx := 1
-	hasWhere := false
+	hasWhere := true
 
 	addCondition := func(condition string, value any) {
 		connector := " WHERE "
@@ -148,7 +150,7 @@ func GetTransactions(ctx context.Context, pool *pgxpool.Pool, params PaginationP
 			var transactions []Transaction
 			for rows.Next() {
 				var t Transaction
-				if err := rows.Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type, &t.Reference, &t.Timestamp); err != nil {
+				if err := rows.Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type, &t.Reference, &t.Timestamp, &t.DeletedAt); err != nil {
 					return nil, err
 				}
 				transactions = append(transactions, t)

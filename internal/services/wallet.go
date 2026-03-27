@@ -20,6 +20,6 @@ func (s *WalletService) GetByID(ctx context.Context, id uuid.UUID) (*db.Wallet, 
 	return db.GetWalletByUUID(ctx, s.pool, id)
 }
 
-func (s *WalletService) GetAll(ctx context.Context, params db.PaginationParams, filter db.WalletFilter) (db.PaginatedResult[db.Wallet], error) {
-	return db.GetWallets(ctx, s.pool, params, filter)
+func (s *WalletService) GetAll(ctx context.Context, params db.PaginationParams) (db.PaginatedResult[db.Wallet], error) {
+	return db.GetWallets(ctx, s.pool, params)
 }

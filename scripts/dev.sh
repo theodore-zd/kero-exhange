@@ -12,4 +12,4 @@ cd "$ROOT_DIR"
 ./scripts/build-server.sh
 
 export PORT
-exec ./bin/kero-server
+exec ./tmp/kero-server

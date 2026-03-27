@@ -1,0 +1,143 @@
+{{define "title"}}Issue Currency{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Issue Currency</h1>
+<p><a href="/admin/wallets">&larr; Back to Wallets</a></p>
+<div id="alert" class="alert" style="display: none;"></div>
+<form id="issue-currency-form">
+    <div>
+        <label for="wallet-uuid">Wallet UUID</label>
+        <input type="text" id="wallet-uuid" name="wallet-uuid" readonly value="{{.WalletUUID}}">
+    </div>
+    <div>
+        <label for="currency">Currency *</label>
+        <select id="currency" name="currency" required>
+            <option value="">Select a currency</option>
+        </select>
+    </div>
+    <div>
+        <label for="amount">Amount *</label>
+        <input type="number" id="amount" name="amount" required step="0.00000001" min="0" placeholder="0.00">
+    </div>
+    <div>
+        <label for="reference">Reference (Optional)</label>
+        <input type="text" id="reference" name="reference" placeholder="Optional reference or notes">
+    </div>
+    <button type="submit">Issue Currency</button>
+</form>
+<div id="error" class="error" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const adminToken = localStorage.getItem('adminToken');
+    const currencySelect = document.getElementById('currency');
+    
+    if (!adminToken) {
+        window.location.href = '/admin/login';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/v1/admin/currencies', {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('adminToken');
+            window.location.href = '/admin/login';
+            return;
+        }
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('Failed to load currencies:', data.error?.message);
+            return;
+        }
+
+        const currencies = data.data.data;
+        currencies.forEach(currency => {
+            const option = document.createElement('option');
+            option.value = currency.uuid;
+            option.textContent = `${currency.code} - ${currency.name}`;
+            currencySelect.appendChild(option);
+        });
+    } catch (err) {
+        console.error('Error loading currencies:', err);
+    }
+});
+
+document.getElementById('issue-currency-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const adminToken = localStorage.getItem('adminToken');
+    const errorDiv = document.getElementById('error');
+    const alertDiv = document.getElementById('alert');
+
+    const walletUUID = document.getElementById('wallet-uuid').value;
+    const currencyID = document.getElementById('currency').value;
+    const amount = document.getElementById('amount').value;
+    const reference = document.getElementById('reference').value.trim() || null;
+
+    errorDiv.style.display = 'none';
+    alertDiv.style.display = 'none';
+
+    if (!currencyID) {
+        errorDiv.textContent = 'Please select a currency';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/v1/admin/wallets/${walletUUID}/issue-currency`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                currency_id: currencyID,
+                amount: amount,
+                reference: reference
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            localStorage.removeItem('adminToken');
+            window.location.href = '/admin/login';
+            return;
+        }
+
+        if (!response.ok) {
+            errorDiv.textContent = data.error?.message || 'Failed to issue currency';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        alertDiv.textContent = 'Currency issued successfully!';
+        alertDiv.className = 'alert alert-success';
+        alertDiv.style.display = 'block';
+        setTimeout(() => {
+            window.location.href = '/admin/wallets';
+        }, 1500);
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}

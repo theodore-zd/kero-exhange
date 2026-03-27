@@ -12,11 +12,14 @@ import (
 )
 
 type Balance struct {
-	UUID       uuid.UUID
-	WalletID   uuid.UUID
-	CurrencyID uuid.UUID
-	Balance    decimal.Decimal
-	UpdatedAt  time.Time
+	UUID         uuid.UUID
+	WalletID     uuid.UUID
+	CurrencyID   uuid.UUID
+	Balance      decimal.Decimal
+	UpdatedAt    time.Time
+	CurrencyCode string
+	CurrencyName string
+	DeletedAt    *time.Time
 }
 
 type BalanceFilter struct {
@@ -26,17 +29,23 @@ type BalanceFilter struct {
 
 func GetBalanceByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*Balance, error) {
 	query := `
-		SELECT uuid, wallet_id, currency_id, balance, updated_at
-		FROM balances
-		WHERE uuid = $1
+		SELECT b.uuid, b.wallet_id, b.currency_id, b.balance, b.updated_at, b.deleted_at, c.code, c.name
+		FROM balances b
+		LEFT JOIN currencies c ON b.currency_id = c.uuid
+		WHERE b.uuid = $1 AND b.deleted_at IS NULL AND c.deleted_at IS NULL
 	`
 	var b Balance
+	var code, name *string
+	var deletedAt *time.Time
 	err := pool.QueryRow(ctx, query, id).Scan(
 		&b.UUID,
 		&b.WalletID,
 		&b.CurrencyID,
 		&b.Balance,
 		&b.UpdatedAt,
+		&deletedAt,
+		&code,
+		&name,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -44,22 +53,35 @@ func GetBalanceByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*B
 		}
 		return nil, fmt.Errorf("get balance by uuid: %w", err)
 	}
+	if code != nil {
+		b.CurrencyCode = *code
+	}
+	if name != nil {
+		b.CurrencyName = *name
+	}
+	b.DeletedAt = deletedAt
 	return &b, nil
 }
 
 func GetBalanceByWalletAndCurrency(ctx context.Context, pool *pgxpool.Pool, walletID, currencyID uuid.UUID) (*Balance, error) {
 	query := `
-		SELECT uuid, wallet_id, currency_id, balance, updated_at
-		FROM balances
-		WHERE wallet_id = $1 AND currency_id = $2
+		SELECT b.uuid, b.wallet_id, b.currency_id, b.balance, b.updated_at, b.deleted_at, c.code, c.name
+		FROM balances b
+		LEFT JOIN currencies c ON b.currency_id = c.uuid
+		WHERE b.wallet_id = $1 AND b.currency_id = $2 AND b.deleted_at IS NULL AND c.deleted_at IS NULL
 	`
 	var b Balance
+	var code, name *string
+	var deletedAt *time.Time
 	err := pool.QueryRow(ctx, query, walletID, currencyID).Scan(
 		&b.UUID,
 		&b.WalletID,
 		&b.CurrencyID,
 		&b.Balance,
 		&b.UpdatedAt,
+		&deletedAt,
+		&code,
+		&name,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -67,49 +89,68 @@ func GetBalanceByWalletAndCurrency(ctx context.Context, pool *pgxpool.Pool, wall
 		}
 		return nil, fmt.Errorf("get balance by wallet and currency: %w", err)
 	}
+	if code != nil {
+		b.CurrencyCode = *code
+	}
+	if name != nil {
+		b.CurrencyName = *name
+	}
+	b.DeletedAt = deletedAt
 	return &b, nil
 }
 
 func GetBalances(ctx context.Context, pool *pgxpool.Pool, params PaginationParams, filter BalanceFilter) (PaginatedResult[Balance], error) {
 	params = params.Normalize()
 
-	baseQuery := `SELECT uuid, wallet_id, currency_id, balance, updated_at FROM balances`
-	countQuery := `SELECT COUNT(*) FROM balances`
+	baseQuery := `
+		SELECT b.uuid, b.wallet_id, b.currency_id, b.balance, b.updated_at, b.deleted_at, c.code, c.name
+		FROM balances b
+		LEFT JOIN currencies c ON b.currency_id = c.uuid
+		WHERE b.deleted_at IS NULL AND c.deleted_at IS NULL
+	`
+	countQuery := `SELECT COUNT(*) FROM balances WHERE deleted_at IS NULL`
 	args := []any{}
 	argIdx := 1
-	hasWhere := false
 
 	if filter.WalletID != uuid.Nil {
-		where := fmt.Sprintf(" WHERE wallet_id = $%d", argIdx)
-		baseQuery += where
-		countQuery += where
+		whereBase := fmt.Sprintf(" AND b.wallet_id = $%d", argIdx)
+		whereCount := fmt.Sprintf(" AND wallet_id = $%d", argIdx)
+		baseQuery += whereBase
+		countQuery += whereCount
 		args = append(args, filter.WalletID)
 		argIdx++
-		hasWhere = true
 	}
 
 	if filter.CurrencyID != uuid.Nil {
-		connector := " WHERE "
-		if hasWhere {
-			connector = " AND "
-		}
-		where := fmt.Sprintf("%scurrency_id = $%d", connector, argIdx)
-		baseQuery += where
-		countQuery += where
+		connectorBase := " AND "
+		connectorCount := " AND "
+		whereBase := fmt.Sprintf("%sb.currency_id = $%d", connectorBase, argIdx)
+		whereCount := fmt.Sprintf("%scurrency_id = $%d", connectorCount, argIdx)
+		baseQuery += whereBase
+		countQuery += whereCount
 		args = append(args, filter.CurrencyID)
 		argIdx++
 	}
 
-	baseQuery += " ORDER BY updated_at DESC"
+	baseQuery += " ORDER BY b.updated_at DESC"
 
 	return Paginate(ctx, pool, baseQuery, countQuery, args, params.PageSize, params.Offset(),
 		func(rows pgx.Rows) ([]Balance, error) {
 			var balances []Balance
 			for rows.Next() {
 				var b Balance
-				if err := rows.Scan(&b.UUID, &b.WalletID, &b.CurrencyID, &b.Balance, &b.UpdatedAt); err != nil {
+				var code, name *string
+				var deletedAt *time.Time
+				if err := rows.Scan(&b.UUID, &b.WalletID, &b.CurrencyID, &b.Balance, &b.UpdatedAt, &deletedAt, &code, &name); err != nil {
 					return nil, err
 				}
+				if code != nil {
+					b.CurrencyCode = *code
+				}
+				if name != nil {
+					b.CurrencyName = *name
+				}
+				b.DeletedAt = deletedAt
 				balances = append(balances, b)
 			}
 			return balances, nil

@@ -1,0 +1,93 @@
+{{define "title"}}Edit Provider API Key{{end}}
+
+{{define "nav"}}
+<li><a href="/admin/dashboard">Dashboard</a></li>
+<li><a href="/admin/providers">Providers</a></li>
+<li><a href="/admin/wallets">Wallets</a></li>
+<li><a href="/admin/currencies">Currencies</a></li>
+<li><a href="#" id="logout">Logout</a></li>
+{{end}}
+
+{{define "content"}}
+<h1>Edit Provider API Key</h1>
+<p><a href="/admin/providers">&larr; Back to Providers</a></p>
+<p><strong>Provider UUID:</strong> <code id="provider-id"></code></p>
+<p>Warning: This will rotate the API key. The old key will no longer work.</p>
+
+<form id="edit-provider-form">
+    <div>
+        <label for="edit-provider-api-key">New API Key</label>
+        <input type="password" id="edit-provider-api-key" name="api_key" required>
+    </div>
+    <button type="submit">Update API Key</button>
+</form>
+
+<div id="error" class="error" style="display: none;"></div>
+<div id="success" class="alert" style="display: none;"></div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/admin.js"></script>
+<script>
+function getProviderID() {
+    const parts = window.location.pathname.split('/');
+    if (parts.length < 5) {
+        return '';
+    }
+    return parts[3];
+}
+
+window.addEventListener('load', () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        window.location.href = '/admin/login';
+        return;
+    }
+
+    document.getElementById('provider-id').textContent = getProviderID();
+});
+
+document.getElementById('edit-provider-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const adminToken = localStorage.getItem('adminToken');
+    const providerID = getProviderID();
+    const apiKey = document.getElementById('edit-provider-api-key').value;
+    const errorDiv = document.getElementById('error');
+    const successDiv = document.getElementById('success');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    try {
+        const response = await fetch(`/api/v1/admin/providers/${providerID}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({ api_key: apiKey })
+        });
+
+        if (!response.ok) {
+            let message = 'Failed to update provider';
+            try {
+                const data = await response.json();
+                message = data.error.message || message;
+            } catch (_) {}
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        successDiv.textContent = 'Provider API key updated successfully.';
+        successDiv.className = 'alert alert-success';
+        successDiv.style.display = 'block';
+        document.getElementById('edit-provider-form').reset();
+    } catch (err) {
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+});
+</script>
+{{end}}
