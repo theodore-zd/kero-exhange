@@ -39,7 +39,7 @@ func TestWalletHandler(t *testing.T) {
 	})
 
 	t.Run("Get - success", func(t *testing.T) {
-		wallet, err := createTestWallet(ctx)
+		wallet, _, err := createTestWallet(ctx)
 		if err != nil {
 			t.Fatalf("Failed to create test wallet: %v", err)
 		}
@@ -55,11 +55,11 @@ func TestWalletHandler(t *testing.T) {
 	})
 
 	t.Run("List - success", func(t *testing.T) {
-		w1, err := createTestWallet(ctx)
+		w1, _, err := createTestWallet(ctx)
 		if err != nil {
 			t.Fatalf("Failed to create test wallet: %v", err)
 		}
-		w2, err := createTestWallet(ctx)
+		w2, _, err := createTestWallet(ctx)
 		if err != nil {
 			t.Fatalf("Failed to create test wallet: %v", err)
 		}
@@ -103,7 +103,7 @@ func TestBalanceHandler(t *testing.T) {
 	})
 
 	t.Run("Get - success", func(t *testing.T) {
-		wallet, err := createTestWallet(ctx)
+		wallet, _, err := createTestWallet(ctx)
 		if err != nil {
 			t.Fatalf("Failed to create test wallet: %v", err)
 		}
@@ -156,7 +156,7 @@ func TestTransactionHandler(t *testing.T) {
 	})
 
 	t.Run("Get - success", func(t *testing.T) {
-		wallet, err := createTestWallet(ctx)
+		wallet, _, err := createTestWallet(ctx)
 		if err != nil {
 			t.Fatalf("Failed to create test wallet: %v", err)
 		}

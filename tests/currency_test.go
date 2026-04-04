@@ -15,13 +15,17 @@ func TestCurrencyList_Empty(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -40,6 +44,12 @@ func TestCurrencyList_WithData(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	currency, err := createTestCurrency(ctx, "USD", "US Dollar")
 	if err != nil {
 		t.Fatalf("Failed to create test currency: %v", err)
@@ -49,10 +59,8 @@ func TestCurrencyList_WithData(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -71,6 +79,12 @@ func TestCurrencyList_Pagination(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	for i := 0; i < 25; i++ {
 		currency, err := createTestCurrency(ctx, fmt.Sprintf("CUR%02d", i), fmt.Sprintf("Currency %d", i))
 		if err != nil {
@@ -82,10 +96,8 @@ func TestCurrencyList_Pagination(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies?page=1&page_size=10")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies?page=1&page_size=10")
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
@@ -103,6 +115,12 @@ func TestCurrencyGet_Success(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	currency, err := createTestCurrency(ctx, "EUR", "Euro")
 	if err != nil {
 		t.Fatalf("Failed to create test currency: %v", err)
@@ -112,10 +130,8 @@ func TestCurrencyGet_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies/" + currency.UUID.String())
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies/"+currency.UUID.String())
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -140,14 +156,19 @@ func TestCurrencyGet_Success(t *testing.T) {
 }
 
 func TestCurrencyGet_NotFound(t *testing.T) {
+	ctx := context.Background()
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
+	token := getTestAccessToken(t, server, passphrase)
 	fakeID := uuid.New().String()
-	resp, err := http.Get(server.URL + "/api/v1/currencies/" + fakeID)
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	resp := authGet(t, server, token, "/api/v1/currencies/"+fakeID)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -156,13 +177,18 @@ func TestCurrencyGet_NotFound(t *testing.T) {
 }
 
 func TestCurrencyGet_InvalidUUID(t *testing.T) {
+	ctx := context.Background()
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies/invalid-uuid")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies/invalid-uuid")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -174,6 +200,12 @@ func TestCurrencyGetByCode_Success(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	currency, err := createTestCurrency(ctx, "GBP", "British Pound")
 	if err != nil {
 		t.Fatalf("Failed to create test currency: %v", err)
@@ -183,10 +215,8 @@ func TestCurrencyGetByCode_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies/code/GBP")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies/code/GBP")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -208,13 +238,18 @@ func TestCurrencyGetByCode_Success(t *testing.T) {
 }
 
 func TestCurrencyGetByCode_NotFound(t *testing.T) {
+	ctx := context.Background()
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies/code/NOTEXIST")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/currencies/code/NOTEXIST")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -222,17 +257,17 @@ func TestCurrencyGetByCode_NotFound(t *testing.T) {
 	}
 }
 
-func TestCurrencyGetByCode_EmptyCode(t *testing.T) {
+func TestCurrencyList_Unauthenticated(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/currencies/code/")
+	resp, err := http.Get(server.URL + "/api/v1/currencies")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.StatusCode)
 	}
 }

@@ -76,6 +76,7 @@ func runMigrations(ctx context.Context) error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS wallet (
 			uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			passphrase_hash VARCHAR(255) DEFAULT '',
 			access_token_hash VARCHAR(255) NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -221,22 +222,19 @@ func createTestCurrency(ctx context.Context, code, name string) (*db.Currency, e
 	})
 }
 
-func createTestWallet(ctx context.Context) (*db.Wallet, error) {
+func createTestWallet(ctx context.Context) (*db.Wallet, string, error) {
+	passphrase := uuid.New().String() + "_test_passphrase"
+	passphraseHash := hashToken(passphrase)
+	accessTokenHash := hashToken(uuid.New().String())
+
 	wallet, err := db.CreateWallet(ctx, testPool, db.CreateWalletParams{
-		AccessTokenHash: hashToken(uuid.New().String()),
+		PassphraseHash:  passphraseHash,
+		AccessTokenHash: accessTokenHash,
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-
-	walletUUID := wallet.UUID.String()
-	passphrase := walletUUID + "_test_passphrase"
-	tokenHash := hashToken(walletUUID + passphrase)
-
-	wallet, err = db.CreateWallet(ctx, testPool, db.CreateWalletParams{
-		AccessTokenHash: tokenHash,
-	})
-	return wallet, err
+	return wallet, passphrase, nil
 }
 
 func createTestReferenceCode(ctx context.Context, providerID uuid.UUID, expiresAt time.Time) (*db.ReferenceCode, error) {
@@ -258,6 +256,29 @@ func deleteTestCurrency(ctx context.Context, currencyID uuid.UUID) {
 
 func generateTestAccessToken() string {
 	return hex.EncodeToString(make([]byte, 32))
+}
+
+func getTestAccessToken(t *testing.T, server *httptest.Server, passphrase string) string {
+	t.Helper()
+	token, _, err := signInTestWallet(server, passphrase)
+	if err != nil {
+		t.Fatalf("Failed to get access token: %v", err)
+	}
+	return token
+}
+
+func authGet(t *testing.T, server *httptest.Server, token, path string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest("GET", server.URL+path, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+	return resp
 }
 
 func signInTestWallet(server *httptest.Server, passphrase string) (string, string, error) {

@@ -12,9 +12,6 @@ import (
 )
 
 func TestRouteRegistration(t *testing.T) {
-	server := setupTestServer(t)
-	defer server.Close()
-
 	r := chi.NewRouter()
 	cfg := &config.Config{
 		AdminPassword:     "test-password",
@@ -55,9 +52,6 @@ func TestRouteRegistration(t *testing.T) {
 }
 
 func TestMiddlewareOrder(t *testing.T) {
-	server := setupTestServer(t)
-	defer server.Close()
-
 	r := chi.NewRouter()
 	cfg := &config.Config{
 		AdminPassword:     "test-password",

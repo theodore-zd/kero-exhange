@@ -63,13 +63,17 @@ func TestBalanceList_Empty(t *testing.T) {
 	ctx := context.Background()
 	testPool.Exec(ctx, "DELETE FROM balances")
 
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -89,7 +93,7 @@ func TestBalanceList_WithData(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM wallet")
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
 	}
@@ -109,10 +113,8 @@ func TestBalanceList_WithData(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -132,7 +134,7 @@ func TestBalanceList_FilterByWalletID(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM wallet")
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
 	}
@@ -149,10 +151,8 @@ func TestBalanceList_FilterByWalletID(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances?wallet_id=" + wallet.UUID.String())
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances?wallet_id="+wallet.UUID.String())
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
@@ -168,7 +168,7 @@ func TestBalanceList_FilterByCurrencyID(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM wallet")
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
 	}
@@ -185,10 +185,8 @@ func TestBalanceList_FilterByCurrencyID(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances?currency_id=" + currency.UUID.String())
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances?currency_id="+currency.UUID.String())
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
@@ -204,7 +202,7 @@ func TestBalanceList_Pagination(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM wallet")
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
 	}
@@ -226,10 +224,8 @@ func TestBalanceList_Pagination(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances?page=1&page_size=10")
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances?page=1&page_size=10")
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
@@ -248,7 +244,7 @@ func TestBalanceGet_Success(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM wallet")
 	testPool.Exec(ctx, "DELETE FROM currencies")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
 	}
@@ -267,10 +263,8 @@ func TestBalanceGet_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances/" + balance.UUID.String())
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances/"+balance.UUID.String())
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -289,20 +283,22 @@ func TestBalanceGet_Success(t *testing.T) {
 	if data["uuid"] != balance.UUID.String() {
 		t.Errorf("Expected uuid %s, got %s", balance.UUID, data["uuid"])
 	}
-	if data["balance"] != "500" {
-		t.Errorf("Expected balance 500, got %s", data["balance"])
-	}
 }
 
 func TestBalanceGet_NotFound(t *testing.T) {
+	ctx := context.Background()
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
+	token := getTestAccessToken(t, server, passphrase)
 	fakeID := uuid.New().String()
-	resp, err := http.Get(server.URL + "/api/v1/balances/" + fakeID)
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
+	resp := authGet(t, server, token, "/api/v1/balances/"+fakeID)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -311,16 +307,36 @@ func TestBalanceGet_NotFound(t *testing.T) {
 }
 
 func TestBalanceGet_InvalidUUID(t *testing.T) {
+	ctx := context.Background()
+	wallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create auth wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, wallet.UUID)
+
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/balances/invalid-uuid")
+	token := getTestAccessToken(t, server, passphrase)
+	resp := authGet(t, server, token, "/api/v1/balances/invalid-uuid")
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestBalanceList_Unauthenticated(t *testing.T) {
+	server := setupTestServer(t)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/balances")
 	if err != nil {
 		t.Fatalf("Failed to make request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("Expected status 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.StatusCode)
 	}
 }

@@ -17,7 +17,7 @@ func TestAuthSignIn_SessionBasedToken(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM access_tokens")
 	testPool.Exec(ctx, "DELETE FROM wallet")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create test wallet: %v", err)
 	}
@@ -25,9 +25,6 @@ func TestAuthSignIn_SessionBasedToken(t *testing.T) {
 
 	server := setupTestServer(t)
 	defer server.Close()
-
-	walletUUID := wallet.UUID.String()
-	passphrase := walletUUID + "_test_passphrase"
 
 	t.Run("Sign in with correct passphrase", func(t *testing.T) {
 		reqBody := strings.Join([]string{
@@ -57,13 +54,16 @@ func TestAuthSignIn_SessionBasedToken(t *testing.T) {
 			t.Error("Expected access token to be returned")
 		}
 
-		if result.Data.WalletUUID != walletUUID {
-			t.Errorf("Expected wallet UUID %s, got %s", walletUUID, result.Data.WalletUUID)
+		if result.Data.WalletUUID != wallet.UUID.String() {
+			t.Errorf("Expected wallet UUID %s, got %s", wallet.UUID.String(), result.Data.WalletUUID)
 		}
 	})
 
 	t.Run("Verify access token created in database", func(t *testing.T) {
-		resp, _ := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+		resp, err := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+		if err != nil {
+			t.Fatalf("Failed to sign in: %v", err)
+		}
 		defer resp.Body.Close()
 
 		var result struct {
@@ -129,7 +129,7 @@ func TestAuthAccessTokenMiddleware_ValidToken(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM access_tokens")
 	testPool.Exec(ctx, "DELETE FROM wallet")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create test wallet: %v", err)
 	}
@@ -138,10 +138,10 @@ func TestAuthAccessTokenMiddleware_ValidToken(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	walletUUID := wallet.UUID.String()
-	passphrase := walletUUID + "_test_passphrase"
-
-	signInResp, _ := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+	signInResp, err := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+	if err != nil {
+		t.Fatalf("Failed to sign in: %v", err)
+	}
 	defer signInResp.Body.Close()
 
 	var signInResult struct {
@@ -172,9 +172,15 @@ func TestAuthAccessTokenMiddleware_ValidToken(t *testing.T) {
 	t.Run("Verify last_used_at updated", func(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 
-		req, _ := http.NewRequest("GET", server.URL+"/api/v1/wallets", nil)
+		req, err := http.NewRequest("GET", server.URL+"/api/v1/wallets", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
 		req.Header.Set("Authorization", "Bearer "+signInResult.Data.AccessToken)
-		resp, _ := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -267,19 +273,16 @@ func TestAuthAccessTokenExpired(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM access_tokens")
 	testPool.Exec(ctx, "DELETE FROM wallet")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create test wallet: %v", err)
 	}
 	defer deleteTestWallet(ctx, wallet.UUID)
 
-	walletUUID := wallet.UUID.String()
-	passphrase := walletUUID + "_test_passphrase"
-
 	server := setupTestServer(t)
 	defer server.Close()
 
-	resp, _ := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+	resp, err := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
 	if err != nil {
 		t.Fatalf("Failed to sign in: %v", err)
 	}
@@ -337,7 +340,7 @@ func TestAuthSignOut(t *testing.T) {
 	testPool.Exec(ctx, "DELETE FROM access_tokens")
 	testPool.Exec(ctx, "DELETE FROM wallet")
 
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create test wallet: %v", err)
 	}
@@ -346,10 +349,10 @@ func TestAuthSignOut(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	walletUUID := wallet.UUID.String()
-	passphrase := walletUUID + "_test_passphrase"
-
-	resp, _ := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+	resp, err := http.Post(server.URL+"/api/v1/auth/signin", "application/json", strings.NewReader(`{"passphrase":"`+passphrase+`"}`))
+	if err != nil {
+		t.Fatalf("Failed to sign in: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var signInResult struct {

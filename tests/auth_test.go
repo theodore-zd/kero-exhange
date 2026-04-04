@@ -52,9 +52,7 @@ func TestAuthGenerateReferenceCodes_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	reqBody := `{"count": 3, "expires_in_hours": 2}`
-	req, _ := http.NewRequest("POST", server.URL+"/api/v1/providers/reference-codes", strings.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("POST", server.URL+"/api/v1/providers/reference-codes", nil)
 	req.Header.Set("X-API-Key", apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -64,7 +62,8 @@ func TestAuthGenerateReferenceCodes_Success(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("Expected status 201, got %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected status 201, got %d. Body: %s", resp.StatusCode, string(body))
 	}
 
 	body, _ := io.ReadAll(resp.Body)
@@ -76,9 +75,11 @@ func TestAuthGenerateReferenceCodes_Success(t *testing.T) {
 		t.Fatalf("Expected data in response, got: %s", string(body))
 	}
 
-	codes, ok := data["codes"].([]interface{})
-	if !ok || len(codes) != 3 {
-		t.Errorf("Expected 3 codes, got %v", data["codes"])
+	if data["code"] == nil || data["code"] == "" {
+		t.Error("Expected code in response")
+	}
+	if data["expires_at"] == nil || data["expires_at"] == "" {
+		t.Error("Expected expires_at in response")
 	}
 }
 
@@ -138,8 +139,7 @@ func TestAuthSignup_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	publicKey := "0x" + strings.ReplaceAll(uuid.New().String(), "-", "")
-	reqBody := `{"public_key": "` + publicKey + `", "reference_code": "` + refCode.Code + `"}`
+	reqBody := `{"reference_code": "` + refCode.Code + `"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", apiKey)
@@ -169,6 +169,9 @@ func TestAuthSignup_Success(t *testing.T) {
 	if data["wallet_uuid"] == nil {
 		t.Error("Expected wallet_uuid in response")
 	}
+	if data["secret_passphrase"] == nil {
+		t.Error("Expected secret_passphrase in response")
+	}
 
 	walletUUID, _ := uuid.Parse(data["wallet_uuid"].(string))
 	defer deleteTestWallet(ctx, walletUUID)
@@ -185,8 +188,7 @@ func TestAuthSignup_InvalidReferenceCode(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	publicKey := "0x" + strings.ReplaceAll(uuid.New().String(), "-", "")
-	reqBody := `{"public_key": "` + publicKey + `", "reference_code": "INVALIDCODE"}`
+	reqBody := `{"reference_code": "INVALIDCODE"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", apiKey)
@@ -221,8 +223,7 @@ func TestAuthSignup_ReferenceCodeUsed(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	publicKey := "0x" + strings.ReplaceAll(uuid.New().String(), "-", "")
-	reqBody := `{"public_key": "` + publicKey + `", "reference_code": "` + refCode.Code + `"}`
+	reqBody := `{"reference_code": "` + refCode.Code + `"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", apiKey)
@@ -255,8 +256,7 @@ func TestAuthSignup_ReferenceCodeExpired(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	publicKey := "0x" + strings.ReplaceAll(uuid.New().String(), "-", "")
-	reqBody := `{"public_key": "` + publicKey + `", "reference_code": "` + refCode.Code + `"}`
+	reqBody := `{"reference_code": "` + refCode.Code + `"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", apiKey)
@@ -272,50 +272,11 @@ func TestAuthSignup_ReferenceCodeExpired(t *testing.T) {
 	}
 }
 
-func TestAuthSignup_DuplicatePublicKey(t *testing.T) {
-	ctx := context.Background()
-	provider, apiKey, err := createTestProvider(ctx, "Test Provider")
-	if err != nil {
-		t.Fatalf("Failed to create test provider: %v", err)
-	}
-	defer testPool.Exec(ctx, "DELETE FROM providers WHERE uuid = $1", provider.UUID)
-
-	refCode, err := createTestReferenceCode(ctx, provider.UUID, time.Now().Add(time.Hour))
-	if err != nil {
-		t.Fatalf("Failed to create reference code: %v", err)
-	}
-	defer testPool.Exec(ctx, "DELETE FROM reference_codes WHERE uuid = $1", refCode.UUID)
-
-	existingWallet, err := createTestWallet(ctx)
-	if err != nil {
-		t.Fatalf("Failed to create existing wallet: %v", err)
-	}
-	defer deleteTestWallet(ctx, existingWallet.UUID)
-
-	server := setupTestServer(t)
-	defer server.Close()
-
-	reqBody := `{"public_key": "0x1234567890abcdef", "reference_code": "` + refCode.Code + `"}`
-	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to make request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusConflict {
-		t.Errorf("Expected status 409, got %d", resp.StatusCode)
-	}
-}
-
 func TestAuthSignup_MissingAPIKey(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	reqBody := `{"public_key": "0x123", "reference_code": "TEST"}`
+	reqBody := `{"reference_code": "TEST"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signup", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -332,7 +293,7 @@ func TestAuthSignup_MissingAPIKey(t *testing.T) {
 
 func TestAuthSignin_Success(t *testing.T) {
 	ctx := context.Background()
-	wallet, err := createTestWallet(ctx)
+	wallet, passphrase, err := createTestWallet(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create test wallet: %v", err)
 	}
@@ -341,7 +302,7 @@ func TestAuthSignin_Success(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	reqBody := `{"public_key": "0xsigninwallet123"}`
+	reqBody := `{"passphrase": "` + passphrase + `"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signin", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -353,7 +314,7 @@ func TestAuthSignin_Success(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		t.Errorf("Expected status 200, got %d. Body: %s", resp.StatusCode, string(body))
+		t.Fatalf("Expected status 200, got %d. Body: %s", resp.StatusCode, string(body))
 	}
 
 	var result map[string]interface{}
@@ -376,7 +337,7 @@ func TestAuthSignin_WalletNotFound(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
-	reqBody := `{"public_key": "0xnonexistentwallet123"}`
+	reqBody := `{"passphrase": "nonexistent_passphrase_12345"}`
 	req, _ := http.NewRequest("POST", server.URL+"/api/v1/auth/signin", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -391,7 +352,7 @@ func TestAuthSignin_WalletNotFound(t *testing.T) {
 	}
 }
 
-func TestAuthSignin_MissingPublicKey(t *testing.T) {
+func TestAuthSignin_MissingPassphrase(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()
 
