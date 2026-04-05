@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	ErrInsufficientBalance  = errors.New("insufficient balance")
-	ErrSameWallet           = errors.New("source and destination wallet are the same")
-	ErrDestinationNotFound  = errors.New("destination wallet not found")
-	ErrCurrencyNotFound     = errors.New("currency not found")
+	ErrInsufficientBalance = errors.New("insufficient balance")
+	ErrSameWallet          = errors.New("source and destination wallet are the same")
+	ErrDestinationNotFound = errors.New("destination wallet not found")
+	ErrCurrencyNotFound    = errors.New("currency not found")
 )
 
 type TransferService struct {
