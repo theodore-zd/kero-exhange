@@ -1,0 +1,163 @@
+{% extends "admin/base.grov" %}
+{% set active = "wallets" %}
+
+{% block title %}
+{% if .mode == "create" %}create wallet{% elif .mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>
+        {% if .mode == "create" %}create wallet
+        {% elif .mode == "regenerate" %}regenerate passphrase
+        {% else %}issue currency to wallet
+        {% endif %}
+    </h1>
+    <a href="/admin/wallets" class="btn btn-secondary">back to wallets</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="result-panel" style="display:none;"></div>
+
+{% if .mode == "create" %}
+<form id="action-form">
+    <p>create a new wallet. the passphrase and access token will be shown once.</p>
+    <button type="submit" class="btn btn-primary">create wallet</button>
+</form>
+
+{% elif .mode == "regenerate" %}
+<form id="action-form">
+    <p>regenerate the passphrase for wallet <strong>{{ .wallet_id }}</strong>. the old passphrase will be invalidated.</p>
+    <button type="submit" class="btn btn-primary">regenerate passphrase</button>
+</form>
+
+{% else %}
+<form id="action-form">
+    <p>issue currency to wallet <strong>{{ .wallet_id }}</strong>.</p>
+    <div class="form-group">
+        <label for="currency">currency</label>
+        <select id="currency" name="currency" required>
+            <option value="">loading currencies&#x2026;</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="amount">amount</label>
+        <input type="number" id="amount" name="amount" required min="0.00000001" step="0.00000001" />
+    </div>
+    <button type="submit" class="btn btn-primary">issue currency</button>
+</form>
+{% endif %}
+
+<script>
+var mode = '{{ .mode }}';
+var walletId = '{{ .wallet_id }}';
+
+if (mode === 'issue') {
+    (async function() {
+        var select = document.getElementById('currency');
+        try {
+            var resp = await adminFetch('/api/v1/admin/currencies');
+            if (resp && resp.ok) {
+                var data = await resp.json();
+                var currencies = data.data || [];
+                while (select.firstChild) { select.removeChild(select.firstChild); }
+                currencies.forEach(function(c) {
+                    var opt = document.createElement('option');
+                    opt.value = c.uuid || c.id;
+                    opt.textContent = c.code + (c.name ? ' — ' + c.name : '');
+                    select.appendChild(opt);
+                });
+            }
+        } catch (err) {
+            while (select.firstChild) { select.removeChild(select.firstChild); }
+            var errOpt = document.createElement('option');
+            errOpt.value = '';
+            errOpt.textContent = 'failed to load currencies';
+            select.appendChild(errOpt);
+        }
+    })();
+}
+
+document.getElementById('action-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var errorDiv = document.getElementById('error');
+    errorDiv.style.display = 'none';
+    try {
+        var resp;
+        if (mode === 'create') {
+            resp = await adminFetch('/api/v1/admin/wallets', { method: 'POST', body: {} });
+        } else if (mode === 'regenerate') {
+            resp = await adminFetch('/api/v1/admin/wallets/' + walletId + '/regenerate', { method: 'POST', body: {} });
+        } else {
+            var currencyId = document.getElementById('currency').value;
+            var amount = document.getElementById('amount').value;
+            resp = await adminFetch('/api/v1/admin/wallets/' + walletId + '/issue-currency', {
+                method: 'POST',
+                body: { currency_id: currencyId, amount: amount }
+            });
+        }
+        if (!resp) return;
+        var data = await resp.json();
+        if (!resp.ok) {
+            errorDiv.textContent = data.error || 'operation failed';
+            errorDiv.style.display = '';
+            return;
+        }
+        document.getElementById('action-form').style.display = 'none';
+        var panel = document.getElementById('result-panel');
+        panel.className = 'alert alert-success';
+
+        if (mode === 'create') {
+            var dl = document.createElement('dl');
+            var fields = [
+                ['wallet uuid', data.uuid || data.wallet_uuid || '—'],
+                ['passphrase (copy now)', data.passphrase || '—'],
+                ['access token (copy now)', data.access_token || '—']
+            ];
+            fields.forEach(function(f) {
+                var dt = document.createElement('dt');
+                dt.textContent = f[0];
+                var dd = document.createElement('dd');
+                var input = document.createElement('input');
+                input.type = 'text';
+                input.readOnly = true;
+                input.value = f[1];
+                input.style.fontFamily = 'monospace';
+                input.style.width = '100%';
+                dd.appendChild(input);
+                dl.appendChild(dt);
+                dl.appendChild(dd);
+            });
+            panel.textContent = 'wallet created';
+            panel.appendChild(dl);
+        } else if (mode === 'regenerate') {
+            var dl2 = document.createElement('dl');
+            var dt2 = document.createElement('dt');
+            dt2.textContent = 'new passphrase (copy now)';
+            var dd2 = document.createElement('dd');
+            var input2 = document.createElement('input');
+            input2.type = 'text';
+            input2.readOnly = true;
+            input2.value = data.passphrase || '—';
+            input2.style.fontFamily = 'monospace';
+            input2.style.width = '100%';
+            dd2.appendChild(input2);
+            dl2.appendChild(dt2);
+            dl2.appendChild(dd2);
+            panel.textContent = 'passphrase regenerated';
+            panel.appendChild(dl2);
+        } else {
+            panel.textContent = 'currency issued successfully';
+        }
+        panel.style.display = '';
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    }
+});
+</script>
+{% endblock %}

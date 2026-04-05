@@ -1,0 +1,148 @@
+{% extends "admin/base.grov" %}
+{% set active = "transactions" %}
+
+{% block title %}transactions — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>transactions</h1>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<div class="filter-bar">
+    <label for="type-filter">type</label>
+    <select id="type-filter">
+        <option value="">all</option>
+        <option value="deposit">deposit</option>
+        <option value="withdrawal">withdrawal</option>
+        <option value="transfer">transfer</option>
+    </select>
+    <label for="wallet-filter">wallet uuid</label>
+    <input type="text" id="wallet-filter" placeholder="wallet uuid" style="width:20rem;" />
+    <button id="apply-filter" class="btn btn-secondary">apply</button>
+</div>
+
+<div id="loading">loading&#x2026;</div>
+<table id="tx-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>date</th>
+            <th>type</th>
+            <th>amount</th>
+            <th>currency</th>
+            <th>wallet</th>
+            <th>reference</th>
+        </tr>
+    </thead>
+    <tbody id="tx-body"></tbody>
+</table>
+<div id="no-tx" style="display:none;">no transactions found</div>
+<div id="pagination"></div>
+
+<script>
+var params = new URLSearchParams(window.location.search);
+var currentPage = parseInt(params.get('page') || '1', 10);
+var currentType = params.get('type') || '';
+var currentWallet = params.get('wallet_id') || '';
+
+document.getElementById('type-filter').value = currentType;
+document.getElementById('wallet-filter').value = currentWallet;
+
+document.getElementById('apply-filter').addEventListener('click', function() {
+    var type = document.getElementById('type-filter').value;
+    var wallet = document.getElementById('wallet-filter').value.trim();
+    var url = '?page=1';
+    if (type) url += '&type=' + encodeURIComponent(type);
+    if (wallet) url += '&wallet_id=' + encodeURIComponent(wallet);
+    window.location.href = url;
+});
+
+(async function() {
+    var errorDiv = document.getElementById('error');
+    try {
+        var url = '/api/v1/admin/transactions?page=' + currentPage;
+        if (currentType) url += '&type=' + encodeURIComponent(currentType);
+        if (currentWallet) url += '&wallet_id=' + encodeURIComponent(currentWallet);
+
+        var resp = await adminFetch(url);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load transactions';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var txs = result.data || [];
+        var meta = result.meta || {};
+        var tbody = document.getElementById('tx-body');
+
+        if (txs.length === 0) {
+            document.getElementById('no-tx').style.display = '';
+        } else {
+            txs.forEach(function(t) {
+                var tr = document.createElement('tr');
+                var cells = [
+                    t.created_at || '—',
+                    t.type || '—',
+                    t.amount,
+                    t.currency_id || '—',
+                    t.wallet_id || '—',
+                    t.reference || '—'
+                ];
+                cells.forEach(function(val) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            document.getElementById('tx-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var totalPages = parseInt(meta.total_pages, 10);
+            var typeParam = currentType ? '&type=' + encodeURIComponent(currentType) : '';
+            var walletParam = currentWallet ? '&wallet_id=' + encodeURIComponent(currentWallet) : '';
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1) + typeParam + walletParam;
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p = 1; p <= totalPages; p++) {
+                if (p === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p + typeParam + walletParam;
+                    aPage.textContent = p;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1) + typeParam + walletParam;
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

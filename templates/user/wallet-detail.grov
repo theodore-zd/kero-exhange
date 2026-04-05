@@ -1,0 +1,128 @@
+{% extends "base.grov" %}
+{% set active = "wallets" %}
+
+{% block title %}wallet detail — kero-exchange{% endblock %}
+
+{% block nav %}
+{% include "components/nav.grov" active=active %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>wallet detail</h1>
+    <a href="/wallets" class="btn btn-secondary">back to wallets</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading">loading&#x2026;</div>
+
+<div id="wallet-info" style="display:none;">
+    <h2>wallet</h2>
+    <dl>
+        <dt>uuid</dt><dd id="wallet-uuid">&#8212;</dd>
+        <dt>created</dt><dd id="wallet-created">&#8212;</dd>
+    </dl>
+</div>
+
+<div id="balances-section" style="display:none;">
+    <h2>balances</h2>
+    <table>
+        <thead><tr><th>currency</th><th>amount</th></tr></thead>
+        <tbody id="balances-body"></tbody>
+    </table>
+</div>
+
+<div id="transactions-section" style="display:none;">
+    <h2>transactions</h2>
+    <a href="/transfer" class="btn btn-primary" style="margin-bottom:1rem;display:inline-block;">new transfer</a>
+    <table>
+        <thead>
+            <tr><th>date</th><th>type</th><th>amount</th><th>currency</th><th>reference</th></tr>
+        </thead>
+        <tbody id="transactions-body"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script>
+(async function() {
+    var errorDiv = document.getElementById('error');
+    var walletId = window.location.pathname.split('/').pop();
+    if (!walletId) {
+        errorDiv.textContent = 'no wallet id in url';
+        errorDiv.style.display = '';
+        return;
+    }
+    try {
+        var results = await Promise.all([
+            apiFetch('/api/v1/wallets/' + walletId),
+            apiFetch('/api/v1/balances?wallet_id=' + walletId),
+            apiFetch('/api/v1/transactions?wallet_id=' + walletId)
+        ]);
+        var walletResp = results[0];
+        var balancesResp = results[1];
+        var txResp = results[2];
+
+        if (!walletResp || !walletResp.ok) {
+            errorDiv.textContent = 'failed to load wallet';
+            errorDiv.style.display = '';
+            return;
+        }
+        var wallet = await walletResp.json();
+        document.getElementById('wallet-uuid').textContent = wallet.uuid || walletId;
+        document.getElementById('wallet-created').textContent = wallet.created_at || '—';
+        document.getElementById('wallet-info').style.display = '';
+
+        if (balancesResp && balancesResp.ok) {
+            var bData = await balancesResp.json();
+            var balances = bData.data || [];
+            var bTbody = document.getElementById('balances-body');
+            balances.forEach(function(b) {
+                var tr = document.createElement('tr');
+                var tdC = document.createElement('td');
+                tdC.textContent = b.currency_code || b.currency_id || '—';
+                var tdA = document.createElement('td');
+                tdA.textContent = b.amount;
+                tr.appendChild(tdC);
+                tr.appendChild(tdA);
+                bTbody.appendChild(tr);
+            });
+            document.getElementById('balances-section').style.display = '';
+        }
+
+        if (txResp && txResp.ok) {
+            var tData = await txResp.json();
+            var txs = tData.data || [];
+            var tTbody = document.getElementById('transactions-body');
+            txs.forEach(function(t) {
+                var tr = document.createElement('tr');
+                var tdDate = document.createElement('td');
+                tdDate.textContent = t.created_at || '—';
+                var tdType = document.createElement('td');
+                tdType.textContent = t.type || '—';
+                var tdAmt = document.createElement('td');
+                tdAmt.textContent = t.amount;
+                var tdCurr = document.createElement('td');
+                tdCurr.textContent = t.currency_id || '—';
+                var tdRef = document.createElement('td');
+                tdRef.textContent = t.reference || '—';
+                tr.appendChild(tdDate);
+                tr.appendChild(tdType);
+                tr.appendChild(tdAmt);
+                tr.appendChild(tdCurr);
+                tr.appendChild(tdRef);
+                tTbody.appendChild(tr);
+            });
+            document.getElementById('transactions-section').style.display = '';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

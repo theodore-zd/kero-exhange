@@ -1,77 +1,35 @@
 package handlers
 
 import (
-	"html/template"
 	"net/http"
-	"os"
-	"path/filepath"
 )
 
-type WebHandler struct {
-	templatesDir    string
-	baseTemplate    string
-	standaloneFiles map[string]bool
-}
+type WebHandler struct{}
 
 func NewWebHandler() *WebHandler {
-	dir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	templatesDir := filepath.Join(dir, "templates")
-
-	files, err := filepath.Glob(filepath.Join(templatesDir, "*.html"))
-	standaloneFiles := make(map[string]bool)
-
-	if err == nil && len(files) > 0 {
-		for _, file := range files {
-			content, err := os.ReadFile(file)
-			if err != nil {
-				continue
-			}
-			filename := filepath.Base(file)
-			if len(content) > 15 && string(content[:15]) == "<!DOCTYPE html>" {
-				standaloneFiles[filename] = true
-			}
-		}
-	}
-
-	return &WebHandler{templatesDir: templatesDir, baseTemplate: filepath.Join(templatesDir, "base.html"), standaloneFiles: standaloneFiles}
+	return &WebHandler{}
 }
 
 func (h *WebHandler) SignInPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, "signin.html", map[string]bool{"ShowSidebar": false})
+	renderGrove(w, r, "user/signin.grov", nil)
+}
+
+func (h *WebHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {
+	renderGrove(w, r, "user/dashboard.grov", nil)
 }
 
 func (h *WebHandler) WalletsPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, "wallets.html", map[string]bool{"ShowSidebar": true})
+	renderGrove(w, r, "user/wallets.grov", nil)
 }
 
-func (h *WebHandler) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
-	if h.templatesDir == "" {
-		http.Error(w, "Templates not loaded", http.StatusInternalServerError)
-		return
-	}
+func (h *WebHandler) WalletDetailPage(w http.ResponseWriter, r *http.Request) {
+	renderGrove(w, r, "user/wallet-detail.grov", nil)
+}
 
-	if h.standaloneFiles[name] {
-		tmpl, err := template.ParseFiles(filepath.Join(h.templatesDir, name))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err := tmpl.Execute(w, data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
+func (h *WebHandler) TransactionsPage(w http.ResponseWriter, r *http.Request) {
+	renderGrove(w, r, "user/transactions.grov", nil)
+}
 
-	tmpl, err := template.ParseFiles(h.baseTemplate, filepath.Join(h.templatesDir, name))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "base.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func (h *WebHandler) TransferPage(w http.ResponseWriter, r *http.Request) {
+	renderGrove(w, r, "user/transfer.grov", nil)
 }

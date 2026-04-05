@@ -1,0 +1,60 @@
+{% extends "admin/base.grov" %}
+{% set active = "currencies" %}
+
+{% block title %}create currency — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>create currency</h1>
+    <a href="/admin/currencies" class="btn btn-secondary">back</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<form id="currency-form">
+    <div class="form-group">
+        <label for="code">code</label>
+        <input type="text" id="code" name="code" required maxlength="10" placeholder="e.g. USD" />
+    </div>
+    <div class="form-group">
+        <label for="name">name</label>
+        <input type="text" id="name" name="name" required placeholder="e.g. US Dollar" />
+    </div>
+    <div class="form-group">
+        <label for="description">description</label>
+        <input type="text" id="description" name="description" placeholder="optional" />
+    </div>
+    <button type="submit" class="btn btn-primary">create currency</button>
+</form>
+
+<script>
+document.getElementById('currency-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var errorDiv = document.getElementById('error');
+    errorDiv.style.display = 'none';
+    var code = document.getElementById('code').value.trim();
+    var name = document.getElementById('name').value.trim();
+    var description = document.getElementById('description').value.trim();
+    try {
+        var body = { code: code, name: name };
+        if (description) body.description = description;
+        var resp = await adminFetch('/api/v1/admin/currencies', { method: 'POST', body: body });
+        if (!resp) return;
+        var data = await resp.json();
+        if (!resp.ok) {
+            errorDiv.textContent = data.error || 'failed to create currency';
+            errorDiv.style.display = '';
+            return;
+        }
+        window.location.href = '/admin/currencies';
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    }
+});
+</script>
+{% endblock %}

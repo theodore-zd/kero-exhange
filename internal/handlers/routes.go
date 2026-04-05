@@ -66,7 +66,7 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	balanceHandler := NewBalanceHandler(balanceSvc)
 	authHandler := NewAuthHandler(authSvc)
 	adminAPIHandler := NewAdminAPIHandler(adminSvc, pool)
-	adminWebHandler := NewAdminWebHandler(adminSvc)
+	adminWebHandler := NewAdminWebHandler()
 	webHandler := NewWebHandler()
 	transferHandler := NewTransferHandler(transferSvc)
 	dashboardHandler := NewDashboardHandler(dashboardSvc)

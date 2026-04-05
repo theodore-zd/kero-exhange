@@ -1,0 +1,81 @@
+{% extends "admin/base.grov" %}
+{% set active = "providers" %}
+
+{% block title %}
+{% if .mode == "edit" %}edit provider key{% else %}create provider{% endif %} — kero admin
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>{% if .mode == "edit" %}regenerate api key{% else %}create provider{% endif %}</h1>
+    <a href="/admin/providers" class="btn btn-secondary">back</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="result-panel" style="display:none;">
+    <div class="alert alert-success">
+        {% if .mode == "edit" %}api key regenerated{% else %}provider created{% endif %}
+    </div>
+    <div class="form-group">
+        <label>api key (copy now — shown once)</label>
+        <input type="text" id="api-key-display" readonly style="font-family:monospace;width:100%;" />
+    </div>
+    <a href="/admin/providers" class="btn btn-secondary">back to providers</a>
+</div>
+
+<form id="provider-form">
+    {% if .mode == "edit" %}
+    <p>regenerate the API key for provider <strong>{{ .provider_id }}</strong>. the old key will be invalidated.</p>
+    <button type="submit" class="btn btn-primary">regenerate key</button>
+    {% else %}
+    <div class="form-group">
+        <label for="name">name</label>
+        <input type="text" id="name" name="name" required />
+    </div>
+    <button type="submit" class="btn btn-primary">create provider</button>
+    {% endif %}
+</form>
+
+<script>
+var mode = '{{ .mode }}';
+var providerId = '{{ .provider_id }}';
+
+document.getElementById('provider-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var errorDiv = document.getElementById('error');
+    errorDiv.style.display = 'none';
+    try {
+        var resp;
+        if (mode === 'edit') {
+            resp = await adminFetch('/api/v1/admin/providers/' + providerId, {
+                method: 'PUT',
+                body: {}
+            });
+        } else {
+            var name = document.getElementById('name').value.trim();
+            resp = await adminFetch('/api/v1/admin/providers', {
+                method: 'POST',
+                body: { name: name }
+            });
+        }
+        if (!resp) return;
+        var data = await resp.json();
+        if (!resp.ok) {
+            errorDiv.textContent = data.error || 'operation failed';
+            errorDiv.style.display = '';
+            return;
+        }
+        document.getElementById('api-key-display').value = data.api_key || data.raw_api_key || '—';
+        document.getElementById('provider-form').style.display = 'none';
+        document.getElementById('result-panel').style.display = '';
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    }
+});
+</script>
+{% endblock %}

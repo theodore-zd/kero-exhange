@@ -1,0 +1,115 @@
+{% extends "admin/base.grov" %}
+{% set active = "wallets" %}
+
+{% block title %}wallet detail — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>wallet detail</h1>
+    <a href="/admin/wallets" class="btn btn-secondary">back to wallets</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading">loading&#x2026;</div>
+
+<div id="wallet-info" style="display:none;">
+    <h2>wallet</h2>
+    <dl>
+        <dt>uuid</dt><dd id="wallet-uuid">&#8212;</dd>
+        <dt>created</dt><dd id="wallet-created">&#8212;</dd>
+    </dl>
+    <div class="action-bar">
+        <a id="regen-link" href="#" class="btn btn-secondary">regenerate passphrase</a>
+        <a id="issue-link" href="#" class="btn btn-secondary">issue currency</a>
+    </div>
+</div>
+
+<div id="balances-section" style="display:none;">
+    <h2>balances</h2>
+    <table>
+        <thead><tr><th>currency</th><th>amount</th></tr></thead>
+        <tbody id="balances-body"></tbody>
+    </table>
+</div>
+
+<div id="transactions-section" style="display:none;">
+    <h2>transactions</h2>
+    <table>
+        <thead>
+            <tr><th>date</th><th>type</th><th>amount</th><th>currency</th><th>reference</th></tr>
+        </thead>
+        <tbody id="transactions-body"></tbody>
+    </table>
+</div>
+
+<script>
+var walletId = '{{ .wallet_id }}';
+
+(async function() {
+    var errorDiv = document.getElementById('error');
+    try {
+        var results = await Promise.all([
+            adminFetch('/api/v1/admin/wallets/' + walletId + '/balances'),
+            adminFetch('/api/v1/admin/transactions?wallet_id=' + walletId)
+        ]);
+
+        document.getElementById('wallet-uuid').textContent = walletId;
+        document.getElementById('regen-link').href = '/admin/wallets/' + walletId + '/regenerate';
+        document.getElementById('issue-link').href = '/admin/wallets/' + walletId + '/issue-currency';
+        document.getElementById('wallet-info').style.display = '';
+
+        var balancesResp = results[0];
+        var txResp = results[1];
+
+        if (balancesResp && balancesResp.ok) {
+            var bData = await balancesResp.json();
+            var balances = bData.data || bData || [];
+            var bTbody = document.getElementById('balances-body');
+            balances.forEach(function(b) {
+                var tr = document.createElement('tr');
+                var tdC = document.createElement('td');
+                tdC.textContent = b.currency_code || b.currency_id || '—';
+                var tdA = document.createElement('td');
+                tdA.textContent = b.amount;
+                tr.appendChild(tdC);
+                tr.appendChild(tdA);
+                bTbody.appendChild(tr);
+            });
+            document.getElementById('balances-section').style.display = '';
+        }
+
+        if (txResp && txResp.ok) {
+            var tData = await txResp.json();
+            var txs = tData.data || [];
+            var tTbody = document.getElementById('transactions-body');
+            txs.forEach(function(t) {
+                var tr = document.createElement('tr');
+                var cells = [
+                    t.created_at || '—',
+                    t.type || '—',
+                    t.amount,
+                    t.currency_id || '—',
+                    t.reference || '—'
+                ];
+                cells.forEach(function(val) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                tTbody.appendChild(tr);
+            });
+            document.getElementById('transactions-section').style.display = '';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

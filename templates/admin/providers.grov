@@ -1,0 +1,126 @@
+{% extends "admin/base.grov" %}
+{% set active = "providers" %}
+
+{% block title %}providers — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>providers</h1>
+    <a href="/admin/providers/new" class="btn btn-primary">add provider</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading">loading&#x2026;</div>
+
+<table id="providers-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>name</th>
+            <th>created</th>
+            <th>actions</th>
+        </tr>
+    </thead>
+    <tbody id="providers-body"></tbody>
+</table>
+<div id="no-providers" style="display:none;">no providers found</div>
+<div id="pagination"></div>
+
+<script>
+(async function() {
+    var errorDiv = document.getElementById('error');
+    var params = new URLSearchParams(window.location.search);
+    var page = params.get('page') || 1;
+    try {
+        var resp = await adminFetch('/api/v1/admin/providers?page=' + page);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load providers';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var providers = result.data || [];
+        var meta = result.meta || {};
+        var tbody = document.getElementById('providers-body');
+
+        if (providers.length === 0) {
+            document.getElementById('no-providers').style.display = '';
+        } else {
+            providers.forEach(function(p) {
+                var tr = document.createElement('tr');
+                var tdName = document.createElement('td');
+                tdName.textContent = p.name || '—';
+                var tdDate = document.createElement('td');
+                tdDate.textContent = p.created_at || '—';
+                var tdActions = document.createElement('td');
+
+                var editLink = document.createElement('a');
+                editLink.href = '/admin/providers/' + p.uuid + '/edit-api-key';
+                editLink.textContent = 'regen key';
+                editLink.className = 'btn btn-secondary btn-sm';
+
+                var delBtn = document.createElement('button');
+                delBtn.textContent = 'delete';
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.addEventListener('click', async function() {
+                    if (!confirm('delete provider ' + p.name + '?')) return;
+                    var dr = await adminFetch('/api/v1/admin/providers/' + p.uuid, { method: 'DELETE' });
+                    if (dr && dr.ok) { tr.remove(); } else { alert('delete failed'); }
+                });
+
+                tdActions.appendChild(editLink);
+                tdActions.appendChild(document.createTextNode(' '));
+                tdActions.appendChild(delBtn);
+                tr.appendChild(tdName);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+            document.getElementById('providers-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var currentPage = parseInt(meta.page, 10);
+            var totalPages = parseInt(meta.total_pages, 10);
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1);
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p2 = 1; p2 <= totalPages; p2++) {
+                if (p2 === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p2;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p2;
+                    aPage.textContent = p2;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1);
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

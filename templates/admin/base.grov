@@ -1,0 +1,20 @@
+{% extends "base.grov" %}
+
+{% block content %}
+<div class="layout-sidebar">
+    <aside class="sidebar">
+        <div class="brand mb-2">kero admin</div>
+        <a href="/admin/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">dashboard</a>
+        <a href="/admin/providers" class="{% if active == 'providers' %}active{% endif %}">providers</a>
+        <a href="/admin/wallets" class="{% if active == 'wallets' %}active{% endif %}">wallets</a>
+        <a href="/admin/currencies" class="{% if active == 'currencies' %}active{% endif %}">currencies</a>
+        <a href="/admin/transactions" class="{% if active == 'transactions' %}active{% endif %}">transactions</a>
+        <a href="/admin/audit-log" class="{% if active == 'audit-log' %}active{% endif %}">audit log</a>
+        <a href="/admin/lookup" class="{% if active == 'lookup' %}active{% endif %}">lookup</a>
+        <a href="#" onclick="adminSignOut(); return false;">logout</a>
+    </aside>
+    <div class="sidebar-content">
+        {% block admin_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.grov" %}
+{% set active = "transactions" %}
+
+{% block title %}transactions — kero-exchange{% endblock %}
+
+{% block nav %}
+{% include "components/nav.grov" active=active %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>transactions</h1>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<div class="filter-bar">
+    <label for="type-filter">type</label>
+    <select id="type-filter">
+        <option value="">all</option>
+        <option value="deposit">deposit</option>
+        <option value="withdrawal">withdrawal</option>
+        <option value="transfer">transfer</option>
+    </select>
+</div>
+
+<div id="loading">loading&#x2026;</div>
+<table id="tx-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>date</th>
+            <th>type</th>
+            <th>amount</th>
+            <th>currency</th>
+            <th>reference</th>
+        </tr>
+    </thead>
+    <tbody id="tx-body"></tbody>
+</table>
+<div id="no-tx" style="display:none;">no transactions found</div>
+<div id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script>
+var params = new URLSearchParams(window.location.search);
+var currentPage = parseInt(params.get('page') || '1', 10);
+var currentType = params.get('type') || '';
+
+document.getElementById('type-filter').value = currentType;
+
+document.getElementById('type-filter').addEventListener('change', function() {
+    var url = '?page=1';
+    if (this.value) url += '&type=' + encodeURIComponent(this.value);
+    window.location.href = url;
+});
+
+(async function() {
+    var errorDiv = document.getElementById('error');
+    try {
+        var url = '/api/v1/transactions?page=' + currentPage;
+        if (currentType) url += '&type=' + encodeURIComponent(currentType);
+
+        var resp = await apiFetch(url);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load transactions';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var txs = result.data || [];
+        var meta = result.meta || {};
+
+        var tbody = document.getElementById('tx-body');
+        if (txs.length === 0) {
+            document.getElementById('no-tx').style.display = '';
+        } else {
+            txs.forEach(function(t) {
+                var tr = document.createElement('tr');
+                var cells = [
+                    t.created_at || '—',
+                    t.type || '—',
+                    t.amount,
+                    t.currency_id || '—',
+                    t.reference || '—'
+                ];
+                cells.forEach(function(val) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            document.getElementById('tx-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var totalPages = parseInt(meta.total_pages, 10);
+            var typeParam = currentType ? '&type=' + encodeURIComponent(currentType) : '';
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1) + typeParam;
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p = 1; p <= totalPages; p++) {
+                if (p === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p + typeParam;
+                    aPage.textContent = p;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1) + typeParam;
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

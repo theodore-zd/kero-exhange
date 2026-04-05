@@ -1,0 +1,98 @@
+{% extends "admin/base.grov" %}
+{% set active = "lookup" %}
+
+{% block title %}user lookup — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>user lookup</h1>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<div class="filter-bar">
+    <label for="search-input">search</label>
+    <input type="text" id="search-input" placeholder="wallet uuid or partial match" style="width:24rem;" />
+    <button id="search-btn" class="btn btn-primary">search</button>
+</div>
+
+<div id="loading" style="display:none;">searching&#x2026;</div>
+<table id="results-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>uuid</th>
+            <th>created</th>
+            <th>actions</th>
+        </tr>
+    </thead>
+    <tbody id="results-body"></tbody>
+</table>
+<div id="no-results" style="display:none;">no results found</div>
+
+<script>
+document.getElementById('search-btn').addEventListener('click', async function() {
+    var query = document.getElementById('search-input').value.trim();
+    if (!query) return;
+    var errorDiv = document.getElementById('error');
+    var loading = document.getElementById('loading');
+    errorDiv.style.display = 'none';
+    document.getElementById('results-table').style.display = 'none';
+    document.getElementById('no-results').style.display = 'none';
+    loading.style.display = '';
+
+    try {
+        var resp = await adminFetch('/api/v1/admin/wallets/search?q=' + encodeURIComponent(query));
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'search failed';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var wallets = result.data || result || [];
+        var tbody = document.getElementById('results-body');
+        while (tbody.firstChild) { tbody.removeChild(tbody.firstChild); }
+
+        if (wallets.length === 0) {
+            document.getElementById('no-results').style.display = '';
+        } else {
+            wallets.forEach(function(w) {
+                var tr = document.createElement('tr');
+                var tdId = document.createElement('td');
+                var a = document.createElement('a');
+                a.href = '/admin/wallets/' + w.uuid;
+                a.textContent = w.uuid;
+                tdId.appendChild(a);
+                var tdDate = document.createElement('td');
+                tdDate.textContent = w.created_at || '—';
+                var tdActions = document.createElement('td');
+                var detailLink = document.createElement('a');
+                detailLink.href = '/admin/wallets/' + w.uuid;
+                detailLink.textContent = 'detail';
+                detailLink.className = 'btn btn-secondary btn-sm';
+                tdActions.appendChild(detailLink);
+                tr.appendChild(tdId);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+            document.getElementById('results-table').style.display = '';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        loading.style.display = 'none';
+    }
+});
+
+document.getElementById('search-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { document.getElementById('search-btn').click(); }
+});
+</script>
+{% endblock %}

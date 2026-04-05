@@ -1,0 +1,87 @@
+{% extends "base.grov" %}
+{% set active = "dashboard" %}
+
+{% block title %}dashboard — kero-exchange{% endblock %}
+
+{% block nav %}
+{% include "components/nav.grov" active=active %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>dashboard</h1>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<div id="stats" class="stats-grid" style="display:none;">
+    <div class="stat-card">
+        <div class="stat-label">wallets</div>
+        <div class="stat-value" id="wallet-count">&#8212;</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">currencies</div>
+        <div class="stat-value" id="currency-count">&#8212;</div>
+    </div>
+</div>
+
+<h2>balances</h2>
+<div id="balances-loading">loading&#x2026;</div>
+<table id="balances-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>currency</th>
+            <th>amount</th>
+        </tr>
+    </thead>
+    <tbody id="balances-body"></tbody>
+</table>
+<div id="no-balances" style="display:none;">no balances found</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script>
+(async function() {
+    var errorDiv = document.getElementById('error');
+    try {
+        var resp = await apiFetch('/api/v1/dashboard');
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load dashboard';
+            errorDiv.style.display = '';
+            return;
+        }
+        var data = await resp.json();
+
+        document.getElementById('wallet-count').textContent = data.wallet_count != null ? data.wallet_count : '—';
+        document.getElementById('currency-count').textContent = data.currency_count != null ? data.currency_count : '—';
+        document.getElementById('stats').style.display = '';
+
+        var tbody = document.getElementById('balances-body');
+        var balances = data.balances || [];
+        if (balances.length === 0) {
+            document.getElementById('no-balances').style.display = '';
+        } else {
+            balances.forEach(function(b) {
+                var tr = document.createElement('tr');
+                var tdCurr = document.createElement('td');
+                tdCurr.textContent = b.currency_code || b.currency_id || '—';
+                var tdAmt = document.createElement('td');
+                tdAmt.textContent = b.amount;
+                tr.appendChild(tdCurr);
+                tr.appendChild(tdAmt);
+                tbody.appendChild(tr);
+            });
+            document.getElementById('balances-table').style.display = '';
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('balances-loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "admin/base.grov" %}
+{% set active = "wallets" %}
+
+{% block title %}wallets — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>wallets</h1>
+    <a href="/admin/wallets/new" class="btn btn-primary">create wallet</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading">loading&#x2026;</div>
+
+<table id="wallets-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>uuid</th>
+            <th>created</th>
+            <th>actions</th>
+        </tr>
+    </thead>
+    <tbody id="wallets-body"></tbody>
+</table>
+<div id="no-wallets" style="display:none;">no wallets found</div>
+<div id="pagination"></div>
+
+<script>
+(async function() {
+    var errorDiv = document.getElementById('error');
+    var params = new URLSearchParams(window.location.search);
+    var page = params.get('page') || 1;
+    try {
+        var resp = await adminFetch('/api/v1/admin/wallets?page=' + page);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load wallets';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var wallets = result.data || [];
+        var meta = result.meta || {};
+        var tbody = document.getElementById('wallets-body');
+
+        if (wallets.length === 0) {
+            document.getElementById('no-wallets').style.display = '';
+        } else {
+            wallets.forEach(function(w) {
+                var tr = document.createElement('tr');
+
+                var tdId = document.createElement('td');
+                var aDetail = document.createElement('a');
+                aDetail.href = '/admin/wallets/' + w.uuid;
+                aDetail.textContent = w.uuid;
+                tdId.appendChild(aDetail);
+
+                var tdDate = document.createElement('td');
+                tdDate.textContent = w.created_at || '—';
+
+                var tdActions = document.createElement('td');
+
+                var regenLink = document.createElement('a');
+                regenLink.href = '/admin/wallets/' + w.uuid + '/regenerate';
+                regenLink.textContent = 'regen';
+                regenLink.className = 'btn btn-secondary btn-sm';
+
+                var issueLink = document.createElement('a');
+                issueLink.href = '/admin/wallets/' + w.uuid + '/issue-currency';
+                issueLink.textContent = 'issue';
+                issueLink.className = 'btn btn-secondary btn-sm';
+
+                var delBtn = document.createElement('button');
+                delBtn.textContent = 'delete';
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.addEventListener('click', async function() {
+                    if (!confirm('delete wallet ' + w.uuid + '?')) return;
+                    var dr = await adminFetch('/api/v1/admin/wallets/' + w.uuid, { method: 'DELETE' });
+                    if (dr && dr.ok) { tr.remove(); } else { alert('delete failed'); }
+                });
+
+                tdActions.appendChild(regenLink);
+                tdActions.appendChild(document.createTextNode(' '));
+                tdActions.appendChild(issueLink);
+                tdActions.appendChild(document.createTextNode(' '));
+                tdActions.appendChild(delBtn);
+
+                tr.appendChild(tdId);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+            document.getElementById('wallets-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var currentPage = parseInt(meta.page, 10);
+            var totalPages = parseInt(meta.total_pages, 10);
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1);
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p = 1; p <= totalPages; p++) {
+                if (p === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p;
+                    aPage.textContent = p;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1);
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

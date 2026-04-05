@@ -1,0 +1,118 @@
+{% extends "admin/base.grov" %}
+{% set active = "currencies" %}
+
+{% block title %}currencies — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>currencies</h1>
+    <a href="/admin/currencies/new" class="btn btn-primary">add currency</a>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading">loading&#x2026;</div>
+
+<table id="currencies-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>code</th>
+            <th>name</th>
+            <th>description</th>
+            <th>actions</th>
+        </tr>
+    </thead>
+    <tbody id="currencies-body"></tbody>
+</table>
+<div id="no-currencies" style="display:none;">no currencies found</div>
+<div id="pagination"></div>
+
+<script>
+(async function() {
+    var errorDiv = document.getElementById('error');
+    var params = new URLSearchParams(window.location.search);
+    var page = params.get('page') || 1;
+    try {
+        var resp = await adminFetch('/api/v1/admin/currencies?page=' + page);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load currencies';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var currencies = result.data || [];
+        var meta = result.meta || {};
+        var tbody = document.getElementById('currencies-body');
+
+        if (currencies.length === 0) {
+            document.getElementById('no-currencies').style.display = '';
+        } else {
+            currencies.forEach(function(c) {
+                var tr = document.createElement('tr');
+                var cells = [c.code || '—', c.name || '—', c.description || '—'];
+                cells.forEach(function(val) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                var tdActions = document.createElement('td');
+                var delBtn = document.createElement('button');
+                delBtn.textContent = 'delete';
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.addEventListener('click', async function() {
+                    if (!confirm('delete currency ' + c.code + '?')) return;
+                    var dr = await adminFetch('/api/v1/admin/currencies/' + c.uuid, { method: 'DELETE' });
+                    if (dr && dr.ok) { tr.remove(); } else { alert('delete failed'); }
+                });
+                tdActions.appendChild(delBtn);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+            document.getElementById('currencies-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var currentPage = parseInt(meta.page, 10);
+            var totalPages = parseInt(meta.total_pages, 10);
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1);
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p = 1; p <= totalPages; p++) {
+                if (p === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p;
+                    aPage.textContent = p;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1);
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}

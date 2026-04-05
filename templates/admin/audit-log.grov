@@ -1,0 +1,143 @@
+{% extends "admin/base.grov" %}
+{% set active = "audit-log" %}
+
+{% block title %}audit log — kero admin{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+    <h1>audit log</h1>
+</div>
+
+<div id="error" class="alert alert-error" style="display:none;"></div>
+
+<div class="filter-bar">
+    <label for="action-filter">action</label>
+    <select id="action-filter">
+        <option value="">all</option>
+        <option value="create_provider">create_provider</option>
+        <option value="delete_provider">delete_provider</option>
+        <option value="create_wallet">create_wallet</option>
+        <option value="delete_wallet">delete_wallet</option>
+        <option value="issue_currency">issue_currency</option>
+        <option value="regenerate_passphrase">regenerate_passphrase</option>
+        <option value="create_currency">create_currency</option>
+        <option value="delete_currency">delete_currency</option>
+    </select>
+    <button id="apply-filter" class="btn btn-secondary">apply</button>
+</div>
+
+<div id="loading">loading&#x2026;</div>
+<table id="log-table" style="display:none;">
+    <thead>
+        <tr>
+            <th>time</th>
+            <th>action</th>
+            <th>entity</th>
+            <th>admin</th>
+            <th>ip</th>
+        </tr>
+    </thead>
+    <tbody id="log-body"></tbody>
+</table>
+<div id="no-logs" style="display:none;">no audit log entries found</div>
+<div id="pagination"></div>
+
+<script>
+var params = new URLSearchParams(window.location.search);
+var currentPage = parseInt(params.get('page') || '1', 10);
+var currentAction = params.get('action') || '';
+
+document.getElementById('action-filter').value = currentAction;
+
+document.getElementById('apply-filter').addEventListener('click', function() {
+    var action = document.getElementById('action-filter').value;
+    var url = '?page=1';
+    if (action) url += '&action=' + encodeURIComponent(action);
+    window.location.href = url;
+});
+
+(async function() {
+    var errorDiv = document.getElementById('error');
+    try {
+        var url = '/api/v1/admin/audit-logs?page=' + currentPage;
+        if (currentAction) url += '&action=' + encodeURIComponent(currentAction);
+
+        var resp = await adminFetch(url);
+        if (!resp) return;
+        if (!resp.ok) {
+            var errData = await resp.json();
+            errorDiv.textContent = errData.error || 'failed to load audit log';
+            errorDiv.style.display = '';
+            return;
+        }
+        var result = await resp.json();
+        var logs = result.data || [];
+        var meta = result.meta || {};
+        var tbody = document.getElementById('log-body');
+
+        if (logs.length === 0) {
+            document.getElementById('no-logs').style.display = '';
+        } else {
+            logs.forEach(function(l) {
+                var tr = document.createElement('tr');
+                var cells = [
+                    l.created_at || '—',
+                    l.action || '—',
+                    l.entity_id || l.entity || '—',
+                    l.admin_id || l.admin || '—',
+                    l.ip_address || l.ip || '—'
+                ];
+                cells.forEach(function(val) {
+                    var td = document.createElement('td');
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            document.getElementById('log-table').style.display = '';
+        }
+
+        if (meta.total_pages > 1) {
+            var pag = document.getElementById('pagination');
+            pag.className = 'pagination';
+            var totalPages = parseInt(meta.total_pages, 10);
+            var actionParam = currentAction ? '&action=' + encodeURIComponent(currentAction) : '';
+            if (currentPage > 1) {
+                var prev = document.createElement('a');
+                prev.href = '?page=' + (currentPage - 1) + actionParam;
+                prev.textContent = '< prev';
+                pag.appendChild(prev);
+            }
+            for (var p = 1; p <= totalPages; p++) {
+                if (p === currentPage) {
+                    var span = document.createElement('span');
+                    span.className = 'active';
+                    span.textContent = p;
+                    pag.appendChild(span);
+                } else {
+                    var aPage = document.createElement('a');
+                    aPage.href = '?page=' + p + actionParam;
+                    aPage.textContent = p;
+                    pag.appendChild(aPage);
+                }
+            }
+            if (currentPage < totalPages) {
+                var next = document.createElement('a');
+                next.href = '?page=' + (currentPage + 1) + actionParam;
+                next.textContent = 'next >';
+                pag.appendChild(next);
+            }
+        }
+    } catch (err) {
+        errorDiv.textContent = 'network error';
+        errorDiv.style.display = '';
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+})();
+</script>
+{% endblock %}
