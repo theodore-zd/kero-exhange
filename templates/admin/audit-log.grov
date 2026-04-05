@@ -1,5 +1,5 @@
 {% extends "admin/base.grov" %}
-{% set active = "audit-log" %}
+
 
 {% block title %}audit log — kero admin{% endblock %}
 

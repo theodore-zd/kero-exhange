@@ -31,13 +31,13 @@ document.getElementById('login-form').addEventListener('submit', async function(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: password })
         });
-        var data = await resp.json();
+        var resp_body = await resp.json();
         if (!resp.ok) {
-            errorDiv.textContent = data.error || 'login failed';
+            errorDiv.textContent = (resp_body.error && resp_body.error.message) || 'login failed';
             errorDiv.style.display = '';
             return;
         }
-        setAdminToken(data.token || data.access_token);
+        setAdminToken(resp_body.data.token);
         window.location.href = '/admin/dashboard';
     } catch (err) {
         errorDiv.textContent = 'network error';

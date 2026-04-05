@@ -14,36 +14,36 @@ import (
 )
 
 const (
-	RouteSignUp           = "/api/v1/auth/signup"
-	RouteSignIn           = "/api/v1/auth/signin"
-	RouteRefCodeGen       = "/api/v1/providers/reference-codes"
-	RouteWallets          = "/api/v1/wallets"
-	RouteWallet           = "/api/v1/wallets/{id}"
-	RouteCurrencies       = "/api/v1/currencies"
-	RouteCurrency         = "/api/v1/currencies/{id}"
-	RouteCurrencyByCode   = "/api/v1/currencies/code/{code}"
-	RouteBalances         = "/api/v1/balances"
-	RouteBalance          = "/api/v1/balances/{id}"
-	RouteTransactions     = "/api/v1/transactions"
-	RouteTransaction      = "/api/v1/transactions/{id}"
-	RouteTransfers        = "/api/v1/transfers"
-	RouteAdminLogin       = "/api/v1/admin/login"
-	RouteAdminProviders   = "/api/v1/admin/providers"
-	RouteAdminProvider    = "/api/v1/admin/providers/{id}"
-	RouteAdminWallets     = "/api/v1/admin/wallets"
-	RouteAdminWallet      = "/api/v1/admin/wallets/{id}"
-	RouteAdminWalletRegen = "/api/v1/admin/wallets/{id}/regenerate"
-	RouteAdminWalletIssue = "/api/v1/admin/wallets/{id}/issue-currency"
-	RouteAdminCurrencies      = "/api/v1/admin/currencies"
-	RouteAdminCurrency        = "/api/v1/admin/currencies/{id}"
-	RouteAdminTransactions    = "/api/v1/admin/transactions"
-	RouteAdminTransaction     = "/api/v1/admin/transactions/{id}"
-	RouteAdminAuditLogs       = "/api/v1/admin/audit-logs"
-	RouteAdminWalletsSearch   = "/api/v1/admin/wallets/search"
-	RouteDashboard            = "/api/v1/dashboard"
-	RouteSignInPage       = "/signin"
-	RouteWalletsPage      = "/wallets"
-	RouteHealth           = "/health"
+	RouteSignUp             = "/api/v1/auth/signup"
+	RouteSignIn             = "/api/v1/auth/signin"
+	RouteRefCodeGen         = "/api/v1/providers/reference-codes"
+	RouteWallets            = "/api/v1/wallets"
+	RouteWallet             = "/api/v1/wallets/{id}"
+	RouteCurrencies         = "/api/v1/currencies"
+	RouteCurrency           = "/api/v1/currencies/{id}"
+	RouteCurrencyByCode     = "/api/v1/currencies/code/{code}"
+	RouteBalances           = "/api/v1/balances"
+	RouteBalance            = "/api/v1/balances/{id}"
+	RouteTransactions       = "/api/v1/transactions"
+	RouteTransaction        = "/api/v1/transactions/{id}"
+	RouteTransfers          = "/api/v1/transfers"
+	RouteAdminLogin         = "/api/v1/admin/login"
+	RouteAdminProviders     = "/api/v1/admin/providers"
+	RouteAdminProvider      = "/api/v1/admin/providers/{id}"
+	RouteAdminWallets       = "/api/v1/admin/wallets"
+	RouteAdminWallet        = "/api/v1/admin/wallets/{id}"
+	RouteAdminWalletRegen   = "/api/v1/admin/wallets/{id}/regenerate"
+	RouteAdminWalletIssue   = "/api/v1/admin/wallets/{id}/issue-currency"
+	RouteAdminCurrencies    = "/api/v1/admin/currencies"
+	RouteAdminCurrency      = "/api/v1/admin/currencies/{id}"
+	RouteAdminTransactions  = "/api/v1/admin/transactions"
+	RouteAdminTransaction   = "/api/v1/admin/transactions/{id}"
+	RouteAdminAuditLogs     = "/api/v1/admin/audit-logs"
+	RouteAdminWalletsSearch = "/api/v1/admin/wallets/search"
+	RouteDashboard          = "/api/v1/dashboard"
+	RouteSignInPage         = "/signin"
+	RouteWalletsPage        = "/wallets"
+	RouteHealth             = "/health"
 )
 
 func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
@@ -91,7 +91,11 @@ func registerPublicRoutes(r chi.Router, webHandler *WebHandler,
 		http.Redirect(w, r, RouteSignInPage, http.StatusFound)
 	})
 	r.Get(RouteSignInPage, webHandler.SignInPage)
+	r.Get("/dashboard", webHandler.DashboardPage)
 	r.Get(RouteWalletsPage, webHandler.WalletsPage)
+	r.Get("/wallets/{id}", webHandler.WalletDetailPage)
+	r.Get("/transactions", webHandler.TransactionsPage)
+	r.Get("/transfer", webHandler.TransferPage)
 	r.Get(RouteHealth, healthHandler)
 	r.Post(RouteSignIn, authHandler.SignIn)
 	r.Post(RouteAdminLogin, adminAPIHandler.Login)
@@ -106,10 +110,14 @@ func registerPublicRoutes(r chi.Router, webHandler *WebHandler,
 	r.Get("/admin/providers/{id}/edit-api-key", adminWebHandler.ProviderEditPage)
 	r.Get("/admin/wallets", adminWebHandler.WalletsPage)
 	r.Get("/admin/wallets/new", adminWebHandler.WalletCreatePage)
+	r.Get("/admin/wallets/{id}", adminWebHandler.WalletDetailPage)
 	r.Get("/admin/wallets/{id}/regenerate", adminWebHandler.WalletRegeneratePage)
 	r.Get("/admin/wallets/{id}/issue-currency", adminWebHandler.WalletIssueCurrencyPage)
 	r.Get("/admin/currencies", adminWebHandler.CurrenciesPage)
 	r.Get("/admin/currencies/new", adminWebHandler.CurrencyCreatePage)
+	r.Get("/admin/transactions", adminWebHandler.TransactionsPage)
+	r.Get("/admin/audit-log", adminWebHandler.AuditLogPage)
+	r.Get("/admin/lookup", adminWebHandler.LookupPage)
 }
 
 func registerAPIKeyProtectedRoutes(r chi.Router, pool *pgxpool.Pool, authHandler *AuthHandler) {

@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	testSeedWalletAUUID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	testSeedWalletBUUID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	testSeedWalletAUUID  = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	testSeedWalletBUUID  = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	testSeedProviderUUID = uuid.MustParse("00000000-0000-0000-0000-000000000003")
 )
 

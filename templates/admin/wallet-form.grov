@@ -1,5 +1,5 @@
 {% extends "admin/base.grov" %}
-{% set active = "wallets" %}
+
 
 {% block title %}
 {% if .mode == "create" %}create wallet{% elif .mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin

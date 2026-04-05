@@ -1,5 +1,5 @@
 {% extends "admin/base.grov" %}
-{% set active = "lookup" %}
+
 
 {% block title %}user lookup — kero admin{% endblock %}
 

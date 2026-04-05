@@ -1,5 +1,5 @@
 {% extends "admin/base.grov" %}
-{% set active = "currencies" %}
+
 
 {% block title %}currencies — kero admin{% endblock %}
 

@@ -1,5 +1,5 @@
 {% extends "admin/base.grov" %}
-{% set active = "providers" %}
+
 
 {% block title %}
 {% if .mode == "edit" %}edit provider key{% else %}create provider{% endif %} — kero admin

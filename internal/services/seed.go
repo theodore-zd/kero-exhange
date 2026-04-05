@@ -14,18 +14,18 @@ import (
 )
 
 var (
-	seedWalletAUUID   = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	seedWalletBUUID   = uuid.MustParse("00000000-0000-0000-0000-000000000002")
-	seedProviderUUID  = uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	seedWalletAUUID  = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	seedWalletBUUID  = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	seedProviderUUID = uuid.MustParse("00000000-0000-0000-0000-000000000003")
 )
 
 const (
-	seedWalletAPassphrase   = "test-user-alpha"
-	seedWalletBPassphrase   = "test-user-beta"
-	seedWalletAAccessToken  = "seed-access-token-wallet-alpha"
-	seedWalletBAccessToken  = "seed-access-token-wallet-beta"
-	seedProviderAPIKey      = "seed-provider-api-key"
-	seedProviderName        = "Seed Test Provider"
+	seedWalletAPassphrase  = "test-user-alpha"
+	seedWalletBPassphrase  = "test-user-beta"
+	seedWalletAAccessToken = "seed-access-token-wallet-alpha"
+	seedWalletBAccessToken = "seed-access-token-wallet-beta"
+	seedProviderAPIKey     = "seed-provider-api-key"
+	seedProviderName       = "Seed Test Provider"
 )
 
 type SeedService struct {
