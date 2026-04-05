@@ -26,6 +26,7 @@ const (
 	RouteBalance          = "/api/v1/balances/{id}"
 	RouteTransactions     = "/api/v1/transactions"
 	RouteTransaction      = "/api/v1/transactions/{id}"
+	RouteTransfers        = "/api/v1/transfers"
 	RouteAdminLogin       = "/api/v1/admin/login"
 	RouteAdminProviders   = "/api/v1/admin/providers"
 	RouteAdminProvider    = "/api/v1/admin/providers/{id}"
@@ -47,6 +48,7 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	balanceSvc := services.NewBalanceService(pool)
 	authSvc := services.NewAuthService(pool)
 	adminSvc := services.NewAdminService(pool, cfg.AdminPassword, cfg.AdminPasswordHash)
+	transferSvc := services.NewTransferService(pool)
 
 	walletHandler := NewWalletHandler(walletSvc)
 	currencyHandler := NewCurrencyHandler(currencySvc)
@@ -56,6 +58,7 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	adminAPIHandler := NewAdminAPIHandler(adminSvc)
 	adminWebHandler := NewAdminWebHandler(adminSvc)
 	webHandler := NewWebHandler()
+	transferHandler := NewTransferHandler(transferSvc)
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -65,7 +68,7 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	registerPublicRoutes(r, webHandler, adminWebHandler, adminAPIHandler, authHandler)
 	registerAPIKeyProtectedRoutes(r, pool, authHandler)
 	registerAccessTokenProtectedRoutes(r, pool, walletHandler, currencyHandler,
-		balanceHandler, transactionHandler)
+		balanceHandler, transactionHandler, transferHandler)
 	registerAdminProtectedRoutes(r, pool, adminAPIHandler)
 
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -110,7 +113,8 @@ func registerAccessTokenProtectedRoutes(r chi.Router, pool *pgxpool.Pool,
 	walletHandler *WalletHandler,
 	currencyHandler *CurrencyHandler,
 	balanceHandler *BalanceHandler,
-	transactionHandler *TransactionHandler) {
+	transactionHandler *TransactionHandler,
+	transferHandler *TransferHandler) {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware.AccessTokenMiddleware(pool))
 
@@ -126,6 +130,8 @@ func registerAccessTokenProtectedRoutes(r chi.Router, pool *pgxpool.Pool,
 
 		r.Get(RouteTransactions, transactionHandler.List)
 		r.Get(RouteTransaction, transactionHandler.Get)
+
+		r.Post(RouteTransfers, transferHandler.Create)
 	})
 }
 

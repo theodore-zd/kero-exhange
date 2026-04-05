@@ -105,6 +105,7 @@ func runMigrations(ctx context.Context) error {
 			amount DECIMAL(20, 8) NOT NULL,
 			type VARCHAR(20) NOT NULL,
 			reference VARCHAR(255),
+			transfer_id UUID,
 			timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			FOREIGN KEY (wallet_id) REFERENCES wallet(uuid) ON DELETE CASCADE,
 			FOREIGN KEY (currency_id) REFERENCES currencies(uuid) ON DELETE RESTRICT
