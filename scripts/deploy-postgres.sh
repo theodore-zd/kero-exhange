@@ -1,17 +1,73 @@
 #!/bin/bash
 
-# Script to deploy PostgreSQL container using Podman
+# Script to deploy PostgreSQL container using Docker
 # This creates a local PostgreSQL instance for development
 # Prompts user for configuration and creates postgres.env file
+#
+# Usage: ./deploy-postgres.sh [OPTIONS]
+#   -y, --yes       Accept all defaults and auto-confirm prompts
+#   --clean         Delete existing data directory when recreating (implies -y for data cleanup)
+#   --name NAME     Container name (default: postgres)
+#   --user USER     PostgreSQL username (default: postgres)
+#   --db DB         Database name (default: local_pg)
+#   --port PORT     PostgreSQL port (default: 5433)
+#   --data-dir DIR  Data directory (default: ./_local_deploy/.postgres/data)
+#   -h, --help      Show this help message
 
 set -e
 
 # Defaults
-DEFAULT_CONTAINER_NAME="kero-exchange-postgres"
+DEFAULT_CONTAINER_NAME="postgres"
 DEFAULT_POSTGRES_USER="postgres"
-DEFAULT_POSTGRES_DB="kero-exchange-db"
+DEFAULT_POSTGRES_DB="local_pg"
 DEFAULT_POSTGRES_PORT="5433"
 DEFAULT_DATA_DIR="./_local_deploy/.postgres/data"
+
+# Flags
+AUTO_YES=false
+AUTO_CLEAN=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes)
+            AUTO_YES=true
+            shift
+            ;;
+        --clean)
+            AUTO_CLEAN=true
+            shift
+            ;;
+        --name)
+            DEFAULT_CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        --user)
+            DEFAULT_POSTGRES_USER="$2"
+            shift 2
+            ;;
+        --db)
+            DEFAULT_POSTGRES_DB="$2"
+            shift 2
+            ;;
+        --port)
+            DEFAULT_POSTGRES_PORT="$2"
+            shift 2
+            ;;
+        --data-dir)
+            DEFAULT_DATA_DIR="$2"
+            shift 2
+            ;;
+        -h|--help)
+            sed -n '7,15p' "$0"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -38,14 +94,32 @@ urlencode() {
     echo "${encoded}"
 }
 
-# Function to prompt user with default value
+# Function to prompt user with default value (skipped in auto-yes mode)
 prompt_with_default() {
     local prompt_text=$1
     local default_value=$2
+
+    if [[ "$AUTO_YES" == true ]]; then
+        echo "$default_value"
+        return
+    fi
+
     local input_value
-    
     read -p "$(echo -e ${BLUE}$prompt_text [${default_value}]${NC}): " input_value
     echo "${input_value:-$default_value}"
+}
+
+# Function to confirm an action (auto-confirms in auto-yes mode)
+confirm() {
+    local prompt_text=$1
+
+    if [[ "$AUTO_YES" == true ]]; then
+        return 0
+    fi
+
+    read -p "$(echo -e ${BLUE}$prompt_text${NC}) (y/N): " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]]
 }
 
 # Function to generate a secure random password
@@ -77,7 +151,11 @@ echo ""
 echo -e "${GREEN}┌──────────────────────────────────────┐${NC}"
 echo -e "${GREEN}│  PostgreSQL Deployment Configuration │${NC}"
 echo -e "${GREEN}└──────────────────────────────────────┘${NC}"
-log_info "Leave any field blank to use the default value"
+if [[ "$AUTO_YES" == true ]]; then
+    log_info "Running in non-interactive mode with defaults"
+else
+    log_info "Leave any field blank to use the default value"
+fi
 echo ""
 
 # Get configuration from user
@@ -124,10 +202,10 @@ DATA_DIR=$DATA_DIR
 DATABASE_URL=postgresql://$POSTGRES_USER:$ENCODED_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable
 
 # Goose Database Migrations (for CLI usage)
-# Use these with goose CLI: goose -dir ./migrations postgres "\$DATABASE_URL" up
+# Use these with goose CLI: goose -dir ./db/migrations postgres "\$DATABASE_URL" up
 GOOSE_DRIVER=postgres
 GOOSE_DBSTRING=\$DATABASE_URL
-GOOSE_MIGRATION_DIR=./migrations
+GOOSE_MIGRATION_DIR=./db/migrations
 EOF
 
 log_success "postgres.env file created"
@@ -139,9 +217,7 @@ echo "  2. Run 'source postgres.env' to load container variables"
 echo ""
 
 # Ask for confirmation before proceeding
-read -p "$(echo -e ${BLUE}[?] Deploy PostgreSQL container now?${NC}) (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+if ! confirm "[?] Deploy PostgreSQL container now?"; then
     log_warning "Deployment cancelled. Configuration saved to $POSTGRES_ENV_FILE"
     exit 0
 fi
@@ -154,22 +230,13 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if port is available
-if lsof -Pi :$POSTGRES_PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
-    log_error "Port $POSTGRES_PORT is already in use."
-    log_info "Please choose a different port or stop the service using it."
-    exit 1
-fi
-
 # Check if container already exists
-if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+if docker container ls -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     log_warning "Container '$CONTAINER_NAME' already exists."
     log_info "The existing container has its own password. If you want a fresh"
     log_info "instance with the new password above, remove and create new."
     echo ""
-    read -p "$(echo -e ${BLUE}[?] Remove and create new container?${NC}) (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if confirm "[?] Remove and create new container?"; then
         log_info "Removing existing container..."
         docker stop "$CONTAINER_NAME" 2>/dev/null || true
         docker rm "$CONTAINER_NAME" 2>/dev/null || true
@@ -184,11 +251,34 @@ if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
     fi
 fi
 
-# Create data directory if it doesn't exist
-if [ ! -d "$DATA_DIR" ]; then
-    log_info "Creating data directory..."
-    mkdir -p "$DATA_DIR"
+# Clean existing data directory if present
+if [ -d "$DATA_DIR" ]; then
+    if [[ "$AUTO_CLEAN" == true ]]; then
+        log_info "Cleaning existing data directory (--clean)..."
+        rm -rf "$DATA_DIR"
+        log_success "Data directory deleted"
+    else
+        log_warning "Existing data directory found: $DATA_DIR"
+        log_info "Old data may contain stale credentials that conflict with the new password."
+        if confirm "[?] Delete existing data directory?"; then
+            rm -rf "$DATA_DIR"
+            log_success "Data directory deleted"
+        else
+            log_warning "Keeping existing data - the new password may not work if data was initialized with a different one"
+        fi
+    fi
 fi
+
+# Check if port is available (after handling existing container)
+if lsof -Pi :$POSTGRES_PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+    log_error "Port $POSTGRES_PORT is already in use."
+    log_info "Please choose a different port or stop the service using it."
+    exit 1
+fi
+
+# Create data directory
+log_info "Creating data directory..."
+mkdir -p "$DATA_DIR"
 
 # Run PostgreSQL container
 log_info "Creating PostgreSQL container..."
@@ -198,8 +288,8 @@ docker run -d \
     -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
     -e POSTGRES_DB="$POSTGRES_DB" \
     -p "$POSTGRES_PORT:5432" \
-    -v "$(pwd)/$DATA_DIR:/var/lib/postgresql/data:Z" \
-    docker.io/postgres:15-alpine
+    -v "$(pwd)/$DATA_DIR:/var/lib/postgresql/data" \
+    postgres:15-alpine
 
 # Wait for PostgreSQL to be ready
 log_info "Waiting for PostgreSQL to start..."
@@ -219,7 +309,7 @@ if docker container inspect "$CONTAINER_NAME" 2>/dev/null | grep -q '"Status": "
     echo ""
     log_info "Next Steps:"
     echo "  1. Add DATABASE_URL to .env file (from postgres.env)"
-    echo "  2. Run migrations: goose -dir migrations postgres \\\"\$DATABASE_URL\\\" up"
+    echo "  2. Run migrations: cd backend && goose -dir migrations postgres \\\"\$DATABASE_URL\\\" up"
     echo ""
     log_info "Container Management:"
     echo "  Stop:  docker stop $CONTAINER_NAME"
