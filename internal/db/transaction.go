@@ -26,13 +26,14 @@ type CreateTransactionParams struct {
 	Amount     decimal.Decimal
 	Type       TransactionType
 	Reference  *string
+	TransferID *uuid.UUID
 }
 
 func CreateTransaction(ctx context.Context, pool *pgxpool.Pool, params CreateTransactionParams) (*Transaction, error) {
 	query := `
-		INSERT INTO transactions (wallet_id, currency_id, amount, type, reference)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING uuid, wallet_id, currency_id, amount, type, reference, timestamp
+		INSERT INTO transactions (wallet_id, currency_id, amount, type, reference, transfer_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING uuid, wallet_id, currency_id, amount, type, reference, transfer_id, timestamp
 	`
 	var t Transaction
 	err := pool.QueryRow(ctx, query,
@@ -41,6 +42,7 @@ func CreateTransaction(ctx context.Context, pool *pgxpool.Pool, params CreateTra
 		params.Amount,
 		params.Type,
 		params.Reference,
+		params.TransferID,
 	).Scan(
 		&t.UUID,
 		&t.WalletID,
@@ -48,6 +50,7 @@ func CreateTransaction(ctx context.Context, pool *pgxpool.Pool, params CreateTra
 		&t.Amount,
 		&t.Type,
 		&t.Reference,
+		&t.TransferID,
 		&t.Timestamp,
 	)
 	if err != nil {
@@ -63,6 +66,7 @@ type Transaction struct {
 	Amount     decimal.Decimal
 	Type       TransactionType
 	Reference  *string
+	TransferID *uuid.UUID
 	Timestamp  time.Time
 	DeletedAt  *time.Time
 }
@@ -77,7 +81,7 @@ type TransactionFilter struct {
 
 func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*Transaction, error) {
 	query := `
-		SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp, deleted_at
+		SELECT uuid, wallet_id, currency_id, amount, type, reference, transfer_id, timestamp, deleted_at
 		FROM transactions
 		WHERE uuid = $1 AND deleted_at IS NULL
 	`
@@ -89,6 +93,7 @@ func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID)
 		&t.Amount,
 		&t.Type,
 		&t.Reference,
+		&t.TransferID,
 		&t.Timestamp,
 		&t.DeletedAt,
 	)
@@ -104,7 +109,7 @@ func GetTransactionByUUID(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID)
 func GetTransactions(ctx context.Context, pool *pgxpool.Pool, params PaginationParams, filter TransactionFilter) (PaginatedResult[Transaction], error) {
 	params = params.Normalize()
 
-	baseQuery := `SELECT uuid, wallet_id, currency_id, amount, type, reference, timestamp, deleted_at FROM transactions WHERE deleted_at IS NULL`
+	baseQuery := `SELECT uuid, wallet_id, currency_id, amount, type, reference, transfer_id, timestamp, deleted_at FROM transactions WHERE deleted_at IS NULL`
 	countQuery := `SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL`
 	args := []any{}
 	argIdx := 1
@@ -150,7 +155,7 @@ func GetTransactions(ctx context.Context, pool *pgxpool.Pool, params PaginationP
 			var transactions []Transaction
 			for rows.Next() {
 				var t Transaction
-				if err := rows.Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type, &t.Reference, &t.Timestamp, &t.DeletedAt); err != nil {
+				if err := rows.Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type, &t.Reference, &t.TransferID, &t.Timestamp, &t.DeletedAt); err != nil {
 					return nil, err
 				}
 				transactions = append(transactions, t)
@@ -158,4 +163,40 @@ func GetTransactions(ctx context.Context, pool *pgxpool.Pool, params PaginationP
 			return transactions, nil
 		},
 	)
+}
+
+func CreateTransactionTx(ctx context.Context, tx pgx.Tx, params CreateTransactionParams) (*Transaction, error) {
+	t := &Transaction{}
+	err := tx.QueryRow(ctx,
+		`INSERT INTO transactions (wallet_id, currency_id, amount, type, reference, transfer_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING uuid, wallet_id, currency_id, amount, type, reference, transfer_id, timestamp`,
+		params.WalletID, params.CurrencyID, params.Amount, params.Type, params.Reference, params.TransferID,
+	).Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type, &t.Reference, &t.TransferID, &t.Timestamp)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction tx: %w", err)
+	}
+	return t, nil
+}
+
+func GetTransactionsByTransferID(ctx context.Context, pool *pgxpool.Pool, transferID uuid.UUID) ([]*Transaction, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT uuid, wallet_id, currency_id, amount, type, reference, transfer_id, timestamp, deleted_at
+		 FROM transactions WHERE transfer_id = $1 AND deleted_at IS NULL
+		 ORDER BY timestamp DESC`, transferID)
+	if err != nil {
+		return nil, fmt.Errorf("get transactions by transfer id: %w", err)
+	}
+	defer rows.Close()
+
+	var txns []*Transaction
+	for rows.Next() {
+		t := &Transaction{}
+		if err := rows.Scan(&t.UUID, &t.WalletID, &t.CurrencyID, &t.Amount, &t.Type,
+			&t.Reference, &t.TransferID, &t.Timestamp, &t.DeletedAt); err != nil {
+			return nil, fmt.Errorf("scan transaction: %w", err)
+		}
+		txns = append(txns, t)
+	}
+	return txns, nil
 }
