@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/wispberry-tech/go-common"
 	"github.com/wispberry-tech/kero-exchange/internal/db"
 	authMiddleware "github.com/wispberry-tech/kero-exchange/internal/middleware"
@@ -14,11 +15,12 @@ import (
 )
 
 type AdminAPIHandler struct {
-	svc *services.AdminService
+	svc  *services.AdminService
+	pool *pgxpool.Pool
 }
 
-func NewAdminAPIHandler(svc *services.AdminService) *AdminAPIHandler {
-	return &AdminAPIHandler{svc: svc}
+func NewAdminAPIHandler(svc *services.AdminService, pool *pgxpool.Pool) *AdminAPIHandler {
+	return &AdminAPIHandler{svc: svc, pool: pool}
 }
 
 func (h *AdminAPIHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -420,5 +422,196 @@ func (h *AdminAPIHandler) IssueCurrencyToWallet(w http.ResponseWriter, r *http.R
 		Balance:     &balanceResp,
 		Transaction: toTransactionResponse(result.Transaction),
 		WalletUUID:  id.String(),
+	})
+}
+
+// Task 6: Admin Transaction List
+
+func (h *AdminAPIHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
+	params := db.PaginationParams{
+		Page:     common.ParseQueryInt(r, "page", 1),
+		PageSize: common.ParseQueryInt(r, "page_size", 20),
+	}
+
+	filter := db.TransactionFilter{}
+
+	if walletIDStr := common.ParseQueryStringPtr(r, "wallet_id"); walletIDStr != nil {
+		walletID, err := uuid.Parse(*walletIDStr)
+		if err == nil {
+			filter.WalletID = walletID
+		}
+	}
+
+	if currencyIDStr := common.ParseQueryStringPtr(r, "currency_id"); currencyIDStr != nil {
+		currencyID, err := uuid.Parse(*currencyIDStr)
+		if err == nil {
+			filter.CurrencyID = currencyID
+		}
+	}
+
+	if txType := common.ParseQueryStringPtr(r, "type"); txType != nil {
+		filter.Type = db.TransactionType(*txType)
+	}
+
+	if from := common.ParseQueryTime(r, "from"); !from.IsZero() {
+		filter.StartDate = &from
+	}
+
+	if to := common.ParseQueryTime(r, "to"); !to.IsZero() {
+		filter.EndDate = &to
+	}
+
+	svc := services.NewTransactionService(h.pool)
+	result, err := svc.GetAll(r.Context(), params, filter)
+	if err != nil {
+		common.LogError("AdminListTransactions failed", "error", err)
+		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list transactions", nil)
+		return
+	}
+
+	transactions := make([]TransactionResponse, len(result.Data))
+	for i, t := range result.Data {
+		transactions[i] = toTransactionResponse(&t)
+	}
+
+	common.WriteJSONResponse(w, http.StatusOK, TransactionListResponse{
+		Data: transactions,
+		Meta: PaginationMeta{
+			Page:       result.Page,
+			PageSize:   result.PageSize,
+			Total:      result.Total,
+			TotalPages: result.TotalPages,
+		},
+	})
+}
+
+func (h *AdminAPIHandler) GetTransaction(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUIDOrError(w, r, "id", "INVALID_UUID", "Invalid transaction UUID")
+	if !ok {
+		return
+	}
+
+	svc := services.NewTransactionService(h.pool)
+	tx, err := svc.GetByID(r.Context(), id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	if tx == nil {
+		handleNotFoundError(w, "Transaction")
+		return
+	}
+
+	common.WriteJSONResponse(w, http.StatusOK, toTransactionResponse(tx))
+}
+
+// Task 7: Admin Audit Log
+
+type AuditLogResponse struct {
+	UUID       string                 `json:"uuid"`
+	Action     string                 `json:"action"`
+	EntityType string                 `json:"entity_type"`
+	EntityID   *string                `json:"entity_id,omitempty"`
+	Details    map[string]interface{} `json:"details,omitempty"`
+	AdminUser  string                 `json:"admin_user"`
+	IPAddress  string                 `json:"ip_address"`
+	UserAgent  string                 `json:"user_agent"`
+	CreatedAt  string                 `json:"created_at"`
+}
+
+type AuditLogListResponse struct {
+	Data []AuditLogResponse `json:"data"`
+	Meta PaginationMeta     `json:"meta"`
+}
+
+func (h *AdminAPIHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
+	params := db.PaginationParams{
+		Page:     common.ParseQueryInt(r, "page", 1),
+		PageSize: common.ParseQueryInt(r, "page_size", 20),
+	}
+
+	filter := db.AuditLogFilter{}
+
+	if action := common.ParseQueryStringPtr(r, "action"); action != nil {
+		filter.Action = *action
+	}
+
+	if entityType := common.ParseQueryStringPtr(r, "entity_type"); entityType != nil {
+		filter.EntityType = *entityType
+	}
+
+	svc := services.NewAuditLogService(h.pool)
+	result, err := svc.GetAuditLogs(r.Context(), params, filter)
+	if err != nil {
+		common.LogError("AdminListAuditLogs failed", "error", err)
+		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list audit logs", nil)
+		return
+	}
+
+	logs := make([]AuditLogResponse, len(result.Data))
+	for i, al := range result.Data {
+		entry := AuditLogResponse{
+			UUID:       al.UUID.String(),
+			Action:     al.Action,
+			EntityType: al.EntityType,
+			Details:    al.Details,
+			AdminUser:  al.AdminUser,
+			IPAddress:  al.IPAddress,
+			UserAgent:  al.UserAgent,
+			CreatedAt:  al.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if al.EntityID != nil {
+			s := al.EntityID.String()
+			entry.EntityID = &s
+		}
+		logs[i] = entry
+	}
+
+	common.WriteJSONResponse(w, http.StatusOK, AuditLogListResponse{
+		Data: logs,
+		Meta: PaginationMeta{
+			Page:       result.Page,
+			PageSize:   result.PageSize,
+			Total:      result.Total,
+			TotalPages: result.TotalPages,
+		},
+	})
+}
+
+// Task 8: Admin Wallet Search
+
+func (h *AdminAPIHandler) SearchWallets(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		common.WriteJSONError(w, http.StatusBadRequest, "MISSING_QUERY", "Search query 'q' is required", nil)
+		return
+	}
+
+	params := db.PaginationParams{
+		Page:     common.ParseQueryInt(r, "page", 1),
+		PageSize: common.ParseQueryInt(r, "page_size", 20),
+	}
+
+	result, err := db.SearchWallets(r.Context(), h.pool, query, params)
+	if err != nil {
+		common.LogError("AdminSearchWallets failed", "error", err)
+		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to search wallets", nil)
+		return
+	}
+
+	wallets := make([]WalletResponse, len(result.Data))
+	for i, wlt := range result.Data {
+		wallets[i] = toWalletResponse(wlt)
+	}
+
+	common.WriteJSONResponse(w, http.StatusOK, WalletListResponse{
+		Data: wallets,
+		Meta: PaginationMeta{
+			Page:       result.Page,
+			PageSize:   result.PageSize,
+			Total:      result.Total,
+			TotalPages: result.TotalPages,
+		},
 	})
 }

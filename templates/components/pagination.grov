@@ -1,0 +1,17 @@
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&page_size={{ page_size }}">&lt; prev</a>
+    {% endif %}
+    {% for p in 1..total_pages + 1 %}
+        {% if p == page %}
+            <span class="active">{{ p }}</span>
+        {% else %}
+            <a href="?page={{ p }}&page_size={{ page_size }}">{{ p }}</a>
+        {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&page_size={{ page_size }}">next &gt;</a>
+    {% endif %}
+</div>
+{% endif %}

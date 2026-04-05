@@ -34,14 +34,23 @@ const (
 	RouteAdminWallet      = "/api/v1/admin/wallets/{id}"
 	RouteAdminWalletRegen = "/api/v1/admin/wallets/{id}/regenerate"
 	RouteAdminWalletIssue = "/api/v1/admin/wallets/{id}/issue-currency"
-	RouteAdminCurrencies  = "/api/v1/admin/currencies"
-	RouteAdminCurrency    = "/api/v1/admin/currencies/{id}"
+	RouteAdminCurrencies      = "/api/v1/admin/currencies"
+	RouteAdminCurrency        = "/api/v1/admin/currencies/{id}"
+	RouteAdminTransactions    = "/api/v1/admin/transactions"
+	RouteAdminTransaction     = "/api/v1/admin/transactions/{id}"
+	RouteAdminAuditLogs       = "/api/v1/admin/audit-logs"
+	RouteAdminWalletsSearch   = "/api/v1/admin/wallets/search"
+	RouteDashboard            = "/api/v1/dashboard"
 	RouteSignInPage       = "/signin"
 	RouteWalletsPage      = "/wallets"
 	RouteHealth           = "/health"
 )
 
 func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
+	if err := InitGrove(); err != nil {
+		common.LogError("Failed to initialize grove", "error", err)
+	}
+
 	walletSvc := services.NewWalletService(pool)
 	currencySvc := services.NewCurrencyService(pool)
 	transactionSvc := services.NewTransactionService(pool)
@@ -49,16 +58,18 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	authSvc := services.NewAuthService(pool)
 	adminSvc := services.NewAdminService(pool, cfg.AdminPassword, cfg.AdminPasswordHash)
 	transferSvc := services.NewTransferService(pool)
+	dashboardSvc := services.NewDashboardService(pool)
 
 	walletHandler := NewWalletHandler(walletSvc)
 	currencyHandler := NewCurrencyHandler(currencySvc)
 	transactionHandler := NewTransactionHandler(transactionSvc)
 	balanceHandler := NewBalanceHandler(balanceSvc)
 	authHandler := NewAuthHandler(authSvc)
-	adminAPIHandler := NewAdminAPIHandler(adminSvc)
+	adminAPIHandler := NewAdminAPIHandler(adminSvc, pool)
 	adminWebHandler := NewAdminWebHandler(adminSvc)
 	webHandler := NewWebHandler()
 	transferHandler := NewTransferHandler(transferSvc)
+	dashboardHandler := NewDashboardHandler(dashboardSvc)
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -68,7 +79,7 @@ func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
 	registerPublicRoutes(r, webHandler, adminWebHandler, adminAPIHandler, authHandler)
 	registerAPIKeyProtectedRoutes(r, pool, authHandler)
 	registerAccessTokenProtectedRoutes(r, pool, walletHandler, currencyHandler,
-		balanceHandler, transactionHandler, transferHandler)
+		balanceHandler, transactionHandler, transferHandler, dashboardHandler)
 	registerAdminProtectedRoutes(r, pool, adminAPIHandler)
 
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -114,9 +125,12 @@ func registerAccessTokenProtectedRoutes(r chi.Router, pool *pgxpool.Pool,
 	currencyHandler *CurrencyHandler,
 	balanceHandler *BalanceHandler,
 	transactionHandler *TransactionHandler,
-	transferHandler *TransferHandler) {
+	transferHandler *TransferHandler,
+	dashboardHandler *DashboardHandler) {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware.AccessTokenMiddleware(pool))
+
+		r.Get(RouteDashboard, dashboardHandler.Summary)
 
 		r.Get(RouteWallets, walletHandler.List)
 		r.Get(RouteWallet, walletHandler.Get)
@@ -146,6 +160,7 @@ func registerAdminProtectedRoutes(r chi.Router, pool *pgxpool.Pool, adminHandler
 
 		r.Post("/wallets", adminHandler.CreateWallet)
 		r.Get("/wallets", adminHandler.ListWallets)
+		r.Get("/wallets/search", adminHandler.SearchWallets)
 		r.Post("/wallets/{id}/regenerate", adminHandler.RegenerateWalletPassphrase)
 		r.Delete("/wallets/{id}", adminHandler.DeleteWallet)
 		r.Post("/wallets/{id}/issue-currency", adminHandler.IssueCurrencyToWallet)
@@ -154,6 +169,11 @@ func registerAdminProtectedRoutes(r chi.Router, pool *pgxpool.Pool, adminHandler
 		r.Post("/currencies", adminHandler.CreateCurrency)
 		r.Get("/currencies", adminHandler.ListCurrencies)
 		r.Delete("/currencies/{id}", adminHandler.DeleteCurrency)
+
+		r.Get("/transactions", adminHandler.ListTransactions)
+		r.Get("/transactions/{id}", adminHandler.GetTransaction)
+
+		r.Get("/audit-logs", adminHandler.ListAuditLogs)
 	})
 }
 

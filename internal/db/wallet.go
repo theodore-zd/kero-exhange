@@ -248,3 +248,41 @@ func DeleteWallet(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func SearchWallets(ctx context.Context, pool *pgxpool.Pool, query string, params PaginationParams) (*PaginatedResult[*Wallet], error) {
+	params = params.Normalize()
+
+	likePattern := query + "%"
+
+	baseQuery := `SELECT uuid, passphrase_hash, access_token_hash, created_at, updated_at FROM wallet WHERE uuid::text LIKE $1`
+	countQuery := `SELECT COUNT(*) FROM wallet WHERE uuid::text LIKE $1`
+	args := []any{likePattern}
+
+	baseQuery += " ORDER BY created_at DESC"
+
+	result, err := Paginate(ctx, pool, baseQuery, countQuery, args, params.PageSize, params.Offset(),
+		func(rows pgx.Rows) ([]*Wallet, error) {
+			var wallets []*Wallet
+			for rows.Next() {
+				var w Wallet
+				var passphraseHash *string
+				var accessTokenHash *string
+				if err := rows.Scan(&w.UUID, &passphraseHash, &accessTokenHash, &w.CreatedAt, &w.UpdatedAt); err != nil {
+					return nil, err
+				}
+				if passphraseHash != nil {
+					w.PassphraseHash = *passphraseHash
+				}
+				if accessTokenHash != nil {
+					w.AccessTokenHash = *accessTokenHash
+				}
+				wallets = append(wallets, &w)
+			}
+			return wallets, nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search wallets: %w", err)
+	}
+	return &result, nil
+}

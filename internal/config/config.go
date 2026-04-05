@@ -16,6 +16,7 @@ type Config struct {
 	DefaultCurrencyCode        string
 	DefaultCurrencyName        string
 	DefaultCurrencyDescription string
+	SeedMode                   bool
 }
 
 func Load() (*Config, error) {
@@ -55,7 +56,7 @@ func Load() (*Config, error) {
 
 	defaultCurrencyDescription := os.Getenv("DEFAULT_CURRENCY_DESCRIPTION")
 
-	return &Config{
+	cfg := &Config{
 		DatabaseURL:                databaseURL,
 		Port:                       port,
 		LogLevel:                   logLevel,
@@ -64,5 +65,7 @@ func Load() (*Config, error) {
 		DefaultCurrencyCode:        defaultCurrencyCode,
 		DefaultCurrencyName:        defaultCurrencyName,
 		DefaultCurrencyDescription: defaultCurrencyDescription,
-	}, nil
+	}
+	cfg.SeedMode = os.Getenv("SEED_MODE") == "true"
+	return cfg, nil
 }

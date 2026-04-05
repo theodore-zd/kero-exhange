@@ -46,6 +46,13 @@ func main() {
 	}
 	common.LogInfo("Default currency ensured", "code", defaultCurrency.Code, "name", defaultCurrency.Name)
 
+	if cfg.SeedMode {
+		seedSvc := services.NewSeedService(pool)
+		if err := seedSvc.Seed(ctx); err != nil {
+			common.LogError("Failed to seed", "error", err)
+		}
+	}
+
 	r := chi.NewRouter()
 	handlers.RegisterRoutes(r, pool, cfg)
 

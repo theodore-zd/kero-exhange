@@ -99,6 +99,36 @@ func GetBalanceByWalletAndCurrency(ctx context.Context, pool *pgxpool.Pool, wall
 	return &b, nil
 }
 
+type BalanceSummary struct {
+	CurrencyCode string
+	CurrencyName string
+	TotalAmount  decimal.Decimal
+}
+
+func GetBalanceSummaryByWallet(ctx context.Context, pool *pgxpool.Pool, walletID uuid.UUID) ([]BalanceSummary, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT c.code, c.name, COALESCE(SUM(b.balance), 0) as total
+		 FROM balances b
+		 JOIN currencies c ON c.uuid = b.currency_id
+		 WHERE b.wallet_id = $1 AND b.deleted_at IS NULL AND c.deleted_at IS NULL
+		 GROUP BY c.code, c.name
+		 ORDER BY c.code`, walletID)
+	if err != nil {
+		return nil, fmt.Errorf("get balance summary: %w", err)
+	}
+	defer rows.Close()
+
+	var summaries []BalanceSummary
+	for rows.Next() {
+		var s BalanceSummary
+		if err := rows.Scan(&s.CurrencyCode, &s.CurrencyName, &s.TotalAmount); err != nil {
+			return nil, fmt.Errorf("scan balance summary: %w", err)
+		}
+		summaries = append(summaries, s)
+	}
+	return summaries, nil
+}
+
 func GetBalances(ctx context.Context, pool *pgxpool.Pool, params PaginationParams, filter BalanceFilter) (PaginatedResult[Balance], error) {
 	params = params.Normalize()
 
