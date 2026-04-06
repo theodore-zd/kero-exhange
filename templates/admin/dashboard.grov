@@ -2,10 +2,6 @@
 
 {% block title %}admin dashboard — kero-exchange{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>dashboard</h1>
@@ -14,48 +10,44 @@
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="stats" class="stats-grid" style="display:none;">
     <div class="stat-card">
-        <div class="stat-label">providers</div>
-        <div class="stat-value" id="provider-count">&#8212;</div>
+        <div class="label">providers</div>
+        <div class="value" id="provider-count">&#8212;</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">wallets</div>
-        <div class="stat-value" id="wallet-count">&#8212;</div>
+        <div class="label">wallets</div>
+        <div class="value" id="wallet-count">&#8212;</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">currencies</div>
-        <div class="stat-value" id="currency-count">&#8212;</div>
+        <div class="label">currencies</div>
+        <div class="value" id="currency-count">&#8212;</div>
     </div>
 </div>
 <div id="loading">loading&#x2026;</div>
 
 <script>
 (async function() {
-    var errorDiv = document.getElementById('error');
     try {
         var results = await Promise.all([
             adminFetch('/api/v1/admin/providers?page_size=1'),
             adminFetch('/api/v1/admin/wallets?page_size=1'),
             adminFetch('/api/v1/admin/currencies?page_size=1')
         ]);
-        var failed = false;
+        var labels = ['providers', 'wallets', 'currencies'];
+        var parsed = [];
         for (var i = 0; i < results.length; i++) {
-            if (!results[i] || !results[i].ok) { failed = true; break; }
+            var p = await parseResponse(results[i], 'dashboard/' + labels[i]);
+            if (!p || p._error) {
+                showError('error', 'failed to load ' + labels[i] + ' stats', p && p._error);
+                return;
+            }
+            parsed.push(p);
         }
-        if (failed) {
-            errorDiv.textContent = 'failed to load stats';
-            errorDiv.style.display = '';
-            return;
-        }
-        var pData = await results[0].json();
-        var wData = await results[1].json();
-        var cData = await results[2].json();
-        document.getElementById('provider-count').textContent = (pData.meta && pData.meta.total != null) ? pData.meta.total : '—';
-        document.getElementById('wallet-count').textContent = (wData.meta && wData.meta.total != null) ? wData.meta.total : '—';
-        document.getElementById('currency-count').textContent = (cData.meta && cData.meta.total != null) ? cData.meta.total : '—';
+        document.getElementById('provider-count').textContent = (parsed[0].meta && parsed[0].meta.total != null) ? parsed[0].meta.total : '—';
+        document.getElementById('wallet-count').textContent = (parsed[1].meta && parsed[1].meta.total != null) ? parsed[1].meta.total : '—';
+        document.getElementById('currency-count').textContent = (parsed[2].meta && parsed[2].meta.total != null) ? parsed[2].meta.total : '—';
         document.getElementById('stats').style.display = '';
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load dashboard', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }

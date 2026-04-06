@@ -3,10 +3,6 @@
 
 {% block title %}wallet detail — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>wallet detail</h1>
@@ -50,7 +46,6 @@
 var walletId = '{{ .wallet_id }}';
 
 (async function() {
-    var errorDiv = document.getElementById('error');
     try {
         var results = await Promise.all([
             adminFetch('/api/v1/admin/wallets/' + walletId + '/balances'),
@@ -62,12 +57,9 @@ var walletId = '{{ .wallet_id }}';
         document.getElementById('issue-link').href = '/admin/wallets/' + walletId + '/issue-currency';
         document.getElementById('wallet-info').style.display = '';
 
-        var balancesResp = results[0];
-        var txResp = results[1];
-
-        if (balancesResp && balancesResp.ok) {
-            var bData = await balancesResp.json();
-            var balances = bData.data || bData || [];
+        var balancesResult = await parseResponse(results[0], 'wallet-detail/balances');
+        if (balancesResult && !balancesResult._error) {
+            var balances = balancesResult.data || [];
             var bTbody = document.getElementById('balances-body');
             balances.forEach(function(b) {
                 var tr = document.createElement('tr');
@@ -80,33 +72,37 @@ var walletId = '{{ .wallet_id }}';
                 bTbody.appendChild(tr);
             });
             document.getElementById('balances-section').style.display = '';
+        } else if (balancesResult && balancesResult._error) {
+            showError('error', 'failed to load balances: ' + balancesResult._error);
         }
 
-        if (txResp && txResp.ok) {
-            var tData = await txResp.json();
-            var txs = tData.data || [];
+        var txResult = await parseResponse(results[1], 'wallet-detail/transactions');
+        if (txResult && !txResult._error) {
+            var txs = txResult.data || [];
             var tTbody = document.getElementById('transactions-body');
             txs.forEach(function(t) {
                 var tr = document.createElement('tr');
                 var cells = [
-                    t.created_at || '—',
+                    formatDate(t.created_at),
                     t.type || '—',
                     t.amount,
-                    t.currency_id || '—',
+                    null,
                     t.reference || '—'
                 ];
                 cells.forEach(function(val) {
                     var td = document.createElement('td');
-                    td.textContent = val;
+                    if (val !== null) td.textContent = val;
                     tr.appendChild(td);
                 });
+                tr.cells[3].appendChild(truncateUUID(t.currency_id));
                 tTbody.appendChild(tr);
             });
             document.getElementById('transactions-section').style.display = '';
+        } else if (txResult && txResult._error) {
+            showError('error', 'failed to load transactions: ' + txResult._error);
         }
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load wallet detail', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }

@@ -5,10 +5,6 @@
 {% if .mode == "create" %}create wallet{% elif .mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin
 {% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>
@@ -61,9 +57,9 @@ if (mode === 'issue') {
         var select = document.getElementById('currency');
         try {
             var resp = await adminFetch('/api/v1/admin/currencies');
-            if (resp && resp.ok) {
-                var data = await resp.json();
-                var currencies = data.data || [];
+            var cResult = await parseResponse(resp, 'wallet-form/currencies');
+            if (cResult && !cResult._error) {
+                var currencies = cResult.data || [];
                 while (select.firstChild) { select.removeChild(select.firstChild); }
                 currencies.forEach(function(c) {
                     var opt = document.createElement('option');
@@ -71,8 +67,11 @@ if (mode === 'issue') {
                     opt.textContent = c.code + (c.name ? ' — ' + c.name : '');
                     select.appendChild(opt);
                 });
+            } else {
+                console.error('[admin] wallet-form: failed to load currencies for dropdown');
             }
         } catch (err) {
+            console.error('[admin] wallet-form: currency dropdown load error:', err.message || err);
             while (select.firstChild) { select.removeChild(select.firstChild); }
             var errOpt = document.createElement('option');
             errOpt.value = '';
@@ -100,13 +99,12 @@ document.getElementById('action-form').addEventListener('submit', async function
                 body: { currency_id: currencyId, amount: amount }
             });
         }
-        if (!resp) return;
-        var data = await resp.json();
-        if (!resp.ok) {
-            errorDiv.textContent = data.error || 'operation failed';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'wallet-form/' + mode);
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'operation failed');
             return;
         }
+        var data = result;
         document.getElementById('action-form').style.display = 'none';
         var panel = document.getElementById('result-panel');
         panel.className = 'alert alert-success';
@@ -155,8 +153,7 @@ document.getElementById('action-form').addEventListener('submit', async function
         }
         panel.style.display = '';
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'operation failed', err);
     }
 });
 </script>

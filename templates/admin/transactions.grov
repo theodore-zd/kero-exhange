@@ -3,10 +3,6 @@
 
 {% block title %}transactions — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>transactions</h1>
@@ -63,21 +59,17 @@ document.getElementById('apply-filter').addEventListener('click', function() {
 });
 
 (async function() {
-    var errorDiv = document.getElementById('error');
     try {
         var url = '/api/v1/admin/transactions?page=' + currentPage;
         if (currentType) url += '&type=' + encodeURIComponent(currentType);
         if (currentWallet) url += '&wallet_id=' + encodeURIComponent(currentWallet);
 
         var resp = await adminFetch(url);
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'failed to load transactions';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'transactions');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load transactions');
             return;
         }
-        var result = await resp.json();
         var txs = result.data || [];
         var meta = result.meta || {};
         var tbody = document.getElementById('tx-body');
@@ -88,58 +80,27 @@ document.getElementById('apply-filter').addEventListener('click', function() {
             txs.forEach(function(t) {
                 var tr = document.createElement('tr');
                 var cells = [
-                    t.created_at || '—',
+                    formatDate(t.created_at),
                     t.type || '—',
                     t.amount,
                     t.currency_id || '—',
-                    t.wallet_id || '—',
+                    null,
                     t.reference || '—'
                 ];
                 cells.forEach(function(val) {
                     var td = document.createElement('td');
-                    td.textContent = val;
+                    if (val !== null) td.textContent = val;
                     tr.appendChild(td);
                 });
+                tr.cells[4].appendChild(truncateUUID(t.wallet_id));
                 tbody.appendChild(tr);
             });
             document.getElementById('tx-table').style.display = '';
         }
 
-        if (meta.total_pages > 1) {
-            var pag = document.getElementById('pagination');
-            pag.className = 'pagination';
-            var totalPages = parseInt(meta.total_pages, 10);
-            var typeParam = currentType ? '&type=' + encodeURIComponent(currentType) : '';
-            var walletParam = currentWallet ? '&wallet_id=' + encodeURIComponent(currentWallet) : '';
-            if (currentPage > 1) {
-                var prev = document.createElement('a');
-                prev.href = '?page=' + (currentPage - 1) + typeParam + walletParam;
-                prev.textContent = '< prev';
-                pag.appendChild(prev);
-            }
-            for (var p = 1; p <= totalPages; p++) {
-                if (p === currentPage) {
-                    var span = document.createElement('span');
-                    span.className = 'active';
-                    span.textContent = p;
-                    pag.appendChild(span);
-                } else {
-                    var aPage = document.createElement('a');
-                    aPage.href = '?page=' + p + typeParam + walletParam;
-                    aPage.textContent = p;
-                    pag.appendChild(aPage);
-                }
-            }
-            if (currentPage < totalPages) {
-                var next = document.createElement('a');
-                next.href = '?page=' + (currentPage + 1) + typeParam + walletParam;
-                next.textContent = 'next >';
-                pag.appendChild(next);
-            }
-        }
+        renderPagination('pagination', meta, { type: currentType, wallet_id: currentWallet });
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load transactions', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }

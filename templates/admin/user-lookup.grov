@@ -3,10 +3,6 @@
 
 {% block title %}user lookup — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>user lookup</h1>
@@ -37,24 +33,20 @@
 document.getElementById('search-btn').addEventListener('click', async function() {
     var query = document.getElementById('search-input').value.trim();
     if (!query) return;
-    var errorDiv = document.getElementById('error');
     var loading = document.getElementById('loading');
-    errorDiv.style.display = 'none';
+    document.getElementById('error').style.display = 'none';
     document.getElementById('results-table').style.display = 'none';
     document.getElementById('no-results').style.display = 'none';
     loading.style.display = '';
 
     try {
         var resp = await adminFetch('/api/v1/admin/wallets/search?q=' + encodeURIComponent(query));
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'search failed';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'user-lookup');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'search failed');
             return;
         }
-        var result = await resp.json();
-        var wallets = result.data || result || [];
+        var wallets = result.data || [];
         var tbody = document.getElementById('results-body');
         while (tbody.firstChild) { tbody.removeChild(tbody.firstChild); }
 
@@ -64,12 +56,9 @@ document.getElementById('search-btn').addEventListener('click', async function()
             wallets.forEach(function(w) {
                 var tr = document.createElement('tr');
                 var tdId = document.createElement('td');
-                var a = document.createElement('a');
-                a.href = '/admin/wallets/' + w.uuid;
-                a.textContent = w.uuid;
-                tdId.appendChild(a);
+                tdId.appendChild(truncateUUID(w.uuid, '/admin/wallets/' + w.uuid));
                 var tdDate = document.createElement('td');
-                tdDate.textContent = w.created_at || '—';
+                tdDate.textContent = formatDate(w.created_at);
                 var tdActions = document.createElement('td');
                 var detailLink = document.createElement('a');
                 detailLink.href = '/admin/wallets/' + w.uuid;
@@ -84,8 +73,7 @@ document.getElementById('search-btn').addEventListener('click', async function()
             document.getElementById('results-table').style.display = '';
         }
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'search failed', err);
     } finally {
         loading.style.display = 'none';
     }

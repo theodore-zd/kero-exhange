@@ -3,10 +3,6 @@
 
 {% block title %}create currency — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>create currency</h1>
@@ -34,8 +30,7 @@
 <script>
 document.getElementById('currency-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    var errorDiv = document.getElementById('error');
-    errorDiv.style.display = 'none';
+    document.getElementById('error').style.display = 'none';
     var code = document.getElementById('code').value.trim();
     var name = document.getElementById('name').value.trim();
     var description = document.getElementById('description').value.trim();
@@ -43,17 +38,14 @@ document.getElementById('currency-form').addEventListener('submit', async functi
         var body = { code: code, name: name };
         if (description) body.description = description;
         var resp = await adminFetch('/api/v1/admin/currencies', { method: 'POST', body: body });
-        if (!resp) return;
-        var data = await resp.json();
-        if (!resp.ok) {
-            errorDiv.textContent = data.error || 'failed to create currency';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'currency-form/create');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to create currency');
             return;
         }
         window.location.href = '/admin/currencies';
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to create currency', err);
     }
 });
 </script>

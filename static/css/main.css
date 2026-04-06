@@ -301,6 +301,107 @@ textarea {
     font-weight: 600;
 }
 
+/* ── Page Header ────────────────────────────────────────────────────────── */
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+    margin-bottom: 0;
+}
+
+/* ── Button Variants ────────────────────────────────────────────────────── */
+
+.btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border: 1px solid var(--accent);
+}
+
+.btn-primary:hover {
+    background: transparent;
+    color: var(--accent);
+}
+
+.btn-secondary {
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    background: transparent;
+}
+
+.btn-secondary:hover {
+    color: var(--text);
+    border-color: var(--text-dim);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* ── Filter Bar ─────────────────────────────────────────────────────────── */
+
+.filter-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.filter-bar label {
+    display: inline;
+}
+
+.filter-bar input,
+.filter-bar select {
+    display: inline-block;
+    width: auto;
+    margin-bottom: 0;
+}
+
+/* ── Form Group ─────────────────────────────────────────────────────────── */
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+/* ── Auth Container ─────────────────────────────────────────────────────── */
+
+.auth-container {
+    max-width: 400px;
+    margin: 4rem auto;
+    padding: 2rem;
+}
+
+/* ── Action Bar ─────────────────────────────────────────────────────────── */
+
+.action-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* ── Definition Lists ───────────────────────────────────────────────────── */
+
+dl {
+    margin-bottom: 1rem;
+}
+
+dt {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+dd {
+    margin-left: 0;
+    margin-bottom: 0.25rem;
+}
+
 /* ── Utility ─────────────────────────────────────────────────────────────── */
 
 .mb-1 { margin-bottom: 0.5rem; }

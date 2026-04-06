@@ -5,10 +5,6 @@
 {% if .mode == "edit" %}edit provider key{% else %}create provider{% endif %} — kero admin
 {% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>{% if .mode == "edit" %}regenerate api key{% else %}create provider{% endif %}</h1>
@@ -62,19 +58,17 @@ document.getElementById('provider-form').addEventListener('submit', async functi
                 body: { name: name }
             });
         }
-        if (!resp) return;
-        var data = await resp.json();
-        if (!resp.ok) {
-            errorDiv.textContent = data.error || 'operation failed';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'provider-form/' + mode);
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'operation failed');
             return;
         }
+        var data = result;
         document.getElementById('api-key-display').value = data.api_key || data.raw_api_key || '—';
         document.getElementById('provider-form').style.display = 'none';
         document.getElementById('result-panel').style.display = '';
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'operation failed', err);
     }
 });
 </script>

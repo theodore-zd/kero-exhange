@@ -3,10 +3,6 @@
 
 {% block title %}audit log — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>audit log</h1>
@@ -61,20 +57,16 @@ document.getElementById('apply-filter').addEventListener('click', function() {
 });
 
 (async function() {
-    var errorDiv = document.getElementById('error');
     try {
         var url = '/api/v1/admin/audit-logs?page=' + currentPage;
         if (currentAction) url += '&action=' + encodeURIComponent(currentAction);
 
         var resp = await adminFetch(url);
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'failed to load audit log';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'audit-log');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load audit log');
             return;
         }
-        var result = await resp.json();
         var logs = result.data || [];
         var meta = result.meta || {};
         var tbody = document.getElementById('log-body');
@@ -85,56 +77,26 @@ document.getElementById('apply-filter').addEventListener('click', function() {
             logs.forEach(function(l) {
                 var tr = document.createElement('tr');
                 var cells = [
-                    l.created_at || '—',
+                    formatDate(l.created_at),
                     l.action || '—',
-                    l.entity_id || l.entity || '—',
+                    null,
                     l.admin_id || l.admin || '—',
                     l.ip_address || l.ip || '—'
                 ];
                 cells.forEach(function(val) {
                     var td = document.createElement('td');
-                    td.textContent = val;
+                    if (val !== null) td.textContent = val;
                     tr.appendChild(td);
                 });
+                tr.cells[2].appendChild(truncateUUID(l.entity_id || l.entity));
                 tbody.appendChild(tr);
             });
             document.getElementById('log-table').style.display = '';
         }
 
-        if (meta.total_pages > 1) {
-            var pag = document.getElementById('pagination');
-            pag.className = 'pagination';
-            var totalPages = parseInt(meta.total_pages, 10);
-            var actionParam = currentAction ? '&action=' + encodeURIComponent(currentAction) : '';
-            if (currentPage > 1) {
-                var prev = document.createElement('a');
-                prev.href = '?page=' + (currentPage - 1) + actionParam;
-                prev.textContent = '< prev';
-                pag.appendChild(prev);
-            }
-            for (var p = 1; p <= totalPages; p++) {
-                if (p === currentPage) {
-                    var span = document.createElement('span');
-                    span.className = 'active';
-                    span.textContent = p;
-                    pag.appendChild(span);
-                } else {
-                    var aPage = document.createElement('a');
-                    aPage.href = '?page=' + p + actionParam;
-                    aPage.textContent = p;
-                    pag.appendChild(aPage);
-                }
-            }
-            if (currentPage < totalPages) {
-                var next = document.createElement('a');
-                next.href = '?page=' + (currentPage + 1) + actionParam;
-                next.textContent = 'next >';
-                pag.appendChild(next);
-            }
-        }
+        renderPagination('pagination', meta, { action: currentAction });
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load audit log', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }

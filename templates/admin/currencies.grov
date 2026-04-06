@@ -3,10 +3,6 @@
 
 {% block title %}currencies — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>currencies</h1>
@@ -32,19 +28,15 @@
 
 <script>
 (async function() {
-    var errorDiv = document.getElementById('error');
     var params = new URLSearchParams(window.location.search);
     var page = params.get('page') || 1;
     try {
         var resp = await adminFetch('/api/v1/admin/currencies?page=' + page);
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'failed to load currencies';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'currencies');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load currencies');
             return;
         }
-        var result = await resp.json();
         var currencies = result.data || [];
         var meta = result.meta || {};
         var tbody = document.getElementById('currencies-body');
@@ -67,7 +59,9 @@
                 delBtn.addEventListener('click', async function() {
                     if (!confirm('delete currency ' + c.code + '?')) return;
                     var dr = await adminFetch('/api/v1/admin/currencies/' + c.uuid, { method: 'DELETE' });
-                    if (dr && dr.ok) { tr.remove(); } else { alert('delete failed'); }
+                    if (dr && dr.ok) { tr.remove(); } else {
+                        showError('error', 'failed to delete currency ' + c.code);
+                    }
                 });
                 tdActions.appendChild(delBtn);
                 tr.appendChild(tdActions);
@@ -76,40 +70,9 @@
             document.getElementById('currencies-table').style.display = '';
         }
 
-        if (meta.total_pages > 1) {
-            var pag = document.getElementById('pagination');
-            pag.className = 'pagination';
-            var currentPage = parseInt(meta.page, 10);
-            var totalPages = parseInt(meta.total_pages, 10);
-            if (currentPage > 1) {
-                var prev = document.createElement('a');
-                prev.href = '?page=' + (currentPage - 1);
-                prev.textContent = '< prev';
-                pag.appendChild(prev);
-            }
-            for (var p = 1; p <= totalPages; p++) {
-                if (p === currentPage) {
-                    var span = document.createElement('span');
-                    span.className = 'active';
-                    span.textContent = p;
-                    pag.appendChild(span);
-                } else {
-                    var aPage = document.createElement('a');
-                    aPage.href = '?page=' + p;
-                    aPage.textContent = p;
-                    pag.appendChild(aPage);
-                }
-            }
-            if (currentPage < totalPages) {
-                var next = document.createElement('a');
-                next.href = '?page=' + (currentPage + 1);
-                next.textContent = 'next >';
-                pag.appendChild(next);
-            }
-        }
+        renderPagination('pagination', meta);
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load currencies', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }

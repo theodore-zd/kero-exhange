@@ -3,10 +3,6 @@
 
 {% block title %}providers — kero admin{% endblock %}
 
-{% block scripts %}
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block admin_content %}
 <div class="page-header">
     <h1>providers</h1>
@@ -31,19 +27,15 @@
 
 <script>
 (async function() {
-    var errorDiv = document.getElementById('error');
     var params = new URLSearchParams(window.location.search);
     var page = params.get('page') || 1;
     try {
         var resp = await adminFetch('/api/v1/admin/providers?page=' + page);
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'failed to load providers';
-            errorDiv.style.display = '';
+        var result = await parseResponse(resp, 'providers');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load providers');
             return;
         }
-        var result = await resp.json();
         var providers = result.data || [];
         var meta = result.meta || {};
         var tbody = document.getElementById('providers-body');
@@ -56,7 +48,7 @@
                 var tdName = document.createElement('td');
                 tdName.textContent = p.name || '—';
                 var tdDate = document.createElement('td');
-                tdDate.textContent = p.created_at || '—';
+                tdDate.textContent = formatDate(p.created_at);
                 var tdActions = document.createElement('td');
 
                 var editLink = document.createElement('a');
@@ -70,7 +62,9 @@
                 delBtn.addEventListener('click', async function() {
                     if (!confirm('delete provider ' + p.name + '?')) return;
                     var dr = await adminFetch('/api/v1/admin/providers/' + p.uuid, { method: 'DELETE' });
-                    if (dr && dr.ok) { tr.remove(); } else { alert('delete failed'); }
+                    if (dr && dr.ok) { tr.remove(); } else {
+                        showError('error', 'failed to delete provider ' + p.name);
+                    }
                 });
 
                 tdActions.appendChild(editLink);
@@ -84,40 +78,9 @@
             document.getElementById('providers-table').style.display = '';
         }
 
-        if (meta.total_pages > 1) {
-            var pag = document.getElementById('pagination');
-            pag.className = 'pagination';
-            var currentPage = parseInt(meta.page, 10);
-            var totalPages = parseInt(meta.total_pages, 10);
-            if (currentPage > 1) {
-                var prev = document.createElement('a');
-                prev.href = '?page=' + (currentPage - 1);
-                prev.textContent = '< prev';
-                pag.appendChild(prev);
-            }
-            for (var p2 = 1; p2 <= totalPages; p2++) {
-                if (p2 === currentPage) {
-                    var span = document.createElement('span');
-                    span.className = 'active';
-                    span.textContent = p2;
-                    pag.appendChild(span);
-                } else {
-                    var aPage = document.createElement('a');
-                    aPage.href = '?page=' + p2;
-                    aPage.textContent = p2;
-                    pag.appendChild(aPage);
-                }
-            }
-            if (currentPage < totalPages) {
-                var next = document.createElement('a');
-                next.href = '?page=' + (currentPage + 1);
-                next.textContent = 'next >';
-                pag.appendChild(next);
-            }
-        }
+        renderPagination('pagination', meta);
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'failed to load providers', err);
     } finally {
         document.getElementById('loading').style.display = 'none';
     }
