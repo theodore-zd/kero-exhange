@@ -2,14 +2,14 @@
 
 
 {% block title %}
-{% if .mode == "create" %}create wallet{% elif .mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin
+{% if mode == "create" %}create wallet{% elif mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin
 {% endblock %}
 
 {% block admin_content %}
 <div class="page-header">
     <h1>
-        {% if .mode == "create" %}create wallet
-        {% elif .mode == "regenerate" %}regenerate passphrase
+        {% if mode == "create" %}create wallet
+        {% elif mode == "regenerate" %}regenerate passphrase
         {% else %}issue currency to wallet
         {% endif %}
     </h1>
@@ -19,21 +19,21 @@
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="result-panel" style="display:none;"></div>
 
-{% if .mode == "create" %}
+{% if mode == "create" %}
 <form id="action-form">
     <p>create a new wallet. the passphrase and access token will be shown once.</p>
     <button type="submit" class="btn btn-primary">create wallet</button>
 </form>
 
-{% elif .mode == "regenerate" %}
+{% elif mode == "regenerate" %}
 <form id="action-form">
-    <p>regenerate the passphrase for wallet <strong>{{ .wallet_id }}</strong>. the old passphrase will be invalidated.</p>
+    <p>regenerate the passphrase for wallet <strong>{{ wallet_id }}</strong>. the old passphrase will be invalidated.</p>
     <button type="submit" class="btn btn-primary">regenerate passphrase</button>
 </form>
 
 {% else %}
 <form id="action-form">
-    <p>issue currency to wallet <strong>{{ .wallet_id }}</strong>.</p>
+    <p>issue currency to wallet <strong>{{ wallet_id }}</strong>.</p>
     <div class="form-group">
         <label for="currency">currency</label>
         <select id="currency" name="currency" required>
@@ -49,8 +49,8 @@
 {% endif %}
 
 <script>
-var mode = '{{ .mode }}';
-var walletId = '{{ .wallet_id }}';
+var mode = '{{ mode }}';
+var walletId = '{{ wallet_id }}';
 
 if (mode === 'issue') {
     (async function() {

@@ -1,5 +1,4 @@
 {% extends "base.grov" %}
-{% set active = "dashboard" %}
 
 {% block title %}dashboard — kero-exchange{% endblock %}
 

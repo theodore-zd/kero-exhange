@@ -2,19 +2,19 @@
 
 
 {% block title %}
-{% if .mode == "edit" %}edit provider key{% else %}create provider{% endif %} — kero admin
+{% if mode == "edit" %}edit provider key{% else %}create provider{% endif %} — kero admin
 {% endblock %}
 
 {% block admin_content %}
 <div class="page-header">
-    <h1>{% if .mode == "edit" %}regenerate api key{% else %}create provider{% endif %}</h1>
+    <h1>{% if mode == "edit" %}regenerate api key{% else %}create provider{% endif %}</h1>
     <a href="/admin/providers" class="btn btn-secondary">back</a>
 </div>
 
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="result-panel" style="display:none;">
     <div class="alert alert-success">
-        {% if .mode == "edit" %}api key regenerated{% else %}provider created{% endif %}
+        {% if mode == "edit" %}api key regenerated{% else %}provider created{% endif %}
     </div>
     <div class="form-group">
         <label>api key (copy now — shown once)</label>
@@ -24,8 +24,8 @@
 </div>
 
 <form id="provider-form">
-    {% if .mode == "edit" %}
-    <p>regenerate the API key for provider <strong>{{ .provider_id }}</strong>. the old key will be invalidated.</p>
+    {% if mode == "edit" %}
+    <p>regenerate the API key for provider <strong>{{ provider_id }}</strong>. the old key will be invalidated.</p>
     <button type="submit" class="btn btn-primary">regenerate key</button>
     {% else %}
     <div class="form-group">
@@ -37,8 +37,8 @@
 </form>
 
 <script>
-var mode = '{{ .mode }}';
-var providerId = '{{ .provider_id }}';
+var mode = '{{ mode }}';
+var providerId = '{{ provider_id }}';
 
 document.getElementById('provider-form').addEventListener('submit', async function(e) {
     e.preventDefault();

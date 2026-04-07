@@ -129,12 +129,16 @@ p {
 .main-content {
     flex: 1;
     padding: 1.5rem 2rem;
-    max-width: 1000px;
 }
 
 main {
-    padding: 1.5rem 2rem;
-    max-width: 1000px;
+    /*  */
+}
+
+.main-content > * {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
@@ -449,7 +453,7 @@ code {
     }
 
     .main-content, main {
-        padding: 1rem;
+        /*  */
     }
 
     .top-nav {

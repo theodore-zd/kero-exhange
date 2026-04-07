@@ -43,7 +43,7 @@
 </div>
 
 <script>
-var walletId = '{{ .wallet_id }}';
+var walletId = '{{ wallet_id }}';
 
 (async function() {
     try {

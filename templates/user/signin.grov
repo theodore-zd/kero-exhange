@@ -31,14 +31,14 @@ document.getElementById('signin-form').addEventListener('submit', async function
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ passphrase })
         });
-        const data = await resp.json();
+        const result = await resp.json();
         if (!resp.ok) {
-            errorDiv.textContent = data.error || 'sign in failed';
+            errorDiv.textContent = result.error || 'sign in failed';
             errorDiv.style.display = '';
             return;
         }
-        setAccessToken(data.access_token);
-        setWalletUUID(data.wallet_uuid);
+        setAccessToken(result.data.access_token);
+        setWalletUUID(result.data.wallet_uuid);
         window.location.href = '/dashboard';
     } catch (err) {
         errorDiv.textContent = 'network error';

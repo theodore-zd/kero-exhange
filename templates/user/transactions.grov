@@ -1,5 +1,4 @@
 {% extends "base.grov" %}
-{% set active = "transactions" %}
 
 {% block title %}transactions — kero-exchange{% endblock %}
 

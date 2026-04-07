@@ -1,5 +1,4 @@
 {% extends "base.grov" %}
-{% set active = "wallets" %}
 
 {% block title %}wallet detail — kero-exchange{% endblock %}
 

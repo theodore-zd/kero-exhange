@@ -154,8 +154,8 @@ Two env files required (see `*.env.example` for templates):
 
 ## Things to Know
 
-- The project directory name has a typo: `kero-exhange` (missing 'c' in exchange). The Go module is `github.com/wispberry-tech/kero-exchange` (correct spelling).
 - The binary output goes to `tmp/kero-server` - this directory is gitignored.
 - `_local_deploy/` contains Docker PostgreSQL data - also gitignored, never commit.
 - Rate limiting is set to 120 requests/minute globally.
 - The `go-common` package (`wispberry-tech/go-common`) provides logging utilities used everywhere.
+- `common.WriteJSONResponse` wraps the payload in a `{"data": ...}` envelope. In JS, name the parsed response variable `result` (not `data`) so field access reads `result.data.field` — never `data.data.field`.
