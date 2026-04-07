@@ -1,9 +1,10 @@
+{% props page, page_size, total_pages %}
 {% if total_pages > 1 %}
 <div class="pagination">
     {% if page > 1 %}
         <a href="?page={{ page - 1 }}&page_size={{ page_size }}">&lt; prev</a>
     {% endif %}
-    {% for p in 1..total_pages + 1 %}
+    {% for p in 1..total_pages %}
         {% if p == page %}
             <span class="active">{{ p }}</span>
         {% else %}

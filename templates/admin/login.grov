@@ -2,6 +2,11 @@
 
 {% block title %}admin login — kero-exchange{% endblock %}
 
+{% block head %}
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/admin.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="auth-container">
     <h1>admin login</h1>
@@ -16,11 +21,6 @@
 </div>
 {% endblock %}
 
-{% block head %}
-<script src="/static/js/utils.js"></script>
-<script src="/static/js/admin.js"></script>
-{% endblock %}
-
 {% block scripts %}
 <script>
 document.getElementById('login-form').addEventListener('submit', async function(e) {
@@ -28,7 +28,6 @@ document.getElementById('login-form').addEventListener('submit', async function(
     var password = document.getElementById('password').value;
     document.getElementById('error').style.display = 'none';
 
-    console.info('[admin] attempting login');
     try {
         var resp = await fetch('/api/v1/admin/login', {
             method: 'POST',
@@ -38,16 +37,13 @@ document.getElementById('login-form').addEventListener('submit', async function(
         var resp_body = await resp.json();
         if (!resp.ok) {
             var msg = (resp_body.error && resp_body.error.message) || 'login failed';
-            console.warn('[admin] login failed:', msg, 'status=' + resp.status);
             showError('error', msg);
             return;
         }
         if (!resp_body.data || !resp_body.data.token) {
-            console.error('[admin] login response missing token:', resp_body);
             showError('error', 'login failed: no token in response');
             return;
         }
-        console.info('[admin] login successful');
         setAdminToken(resp_body.data.token);
         window.location.href = '/admin/dashboard';
     } catch (err) {

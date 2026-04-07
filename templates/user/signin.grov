@@ -2,6 +2,11 @@
 
 {% block title %}sign in — kero-exchange{% endblock %}
 
+{% block head %}
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/app.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="auth-container">
     <h1>sign in</h1>
@@ -17,32 +22,28 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/app.js"></script>
 <script>
 document.getElementById('signin-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    const passphrase = document.getElementById('passphrase').value;
-    const errorDiv = document.getElementById('error');
-    errorDiv.style.display = 'none';
+    var passphrase = document.getElementById('passphrase').value;
+    document.getElementById('error').style.display = 'none';
 
     try {
-        const resp = await fetch('/api/v1/auth/signin', {
+        var resp = await fetch('/api/v1/auth/signin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ passphrase })
+            body: JSON.stringify({ passphrase: passphrase })
         });
-        const result = await resp.json();
+        var result = await resp.json();
         if (!resp.ok) {
-            errorDiv.textContent = result.error || 'sign in failed';
-            errorDiv.style.display = '';
+            showError('error', (result.error && result.error.message) || 'sign in failed');
             return;
         }
         setAccessToken(result.data.access_token);
         setWalletUUID(result.data.wallet_uuid);
         window.location.href = '/dashboard';
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'network error');
     }
 });
 </script>

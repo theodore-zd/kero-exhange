@@ -23,7 +23,9 @@
     </div>
 </div>
 <div id="loading">loading&#x2026;</div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (async function() {
     try {

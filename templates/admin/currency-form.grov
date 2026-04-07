@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}create currency — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -26,7 +25,9 @@
     </div>
     <button type="submit" class="btn btn-primary">create currency</button>
 </form>
+{% endblock %}
 
+{% block scripts %}
 <script>
 document.getElementById('currency-form').addEventListener('submit', async function(e) {
     e.preventDefault();

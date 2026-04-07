@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}kero-exchange{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%231a1a1a'/><text x='2' y='12' font-size='12' fill='%2300ff88' font-family='monospace'>K</text></svg>">
     <link rel="stylesheet" href="/static/css/main.css">
     {% block head %}{% endblock %}
 </head>

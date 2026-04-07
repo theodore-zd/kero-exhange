@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}wallet detail — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -41,7 +40,9 @@
         <tbody id="transactions-body"></tbody>
     </table>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 var walletId = '{{ wallet_id }}';
 

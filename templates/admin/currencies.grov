@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}currencies — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -25,7 +24,9 @@
 </table>
 <div id="no-currencies" style="display:none;">no currencies found</div>
 <div id="pagination"></div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (async function() {
     var params = new URLSearchParams(window.location.search);

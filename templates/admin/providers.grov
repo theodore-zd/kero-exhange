@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}providers — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -24,7 +23,9 @@
 </table>
 <div id="no-providers" style="display:none;">no providers found</div>
 <div id="pagination"></div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (async function() {
     var params = new URLSearchParams(window.location.search);

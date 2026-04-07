@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}
 {% if mode == "create" %}create wallet{% elif mode == "regenerate" %}regenerate passphrase{% else %}issue currency{% endif %} — kero admin
 {% endblock %}
@@ -47,7 +46,9 @@
     <button type="submit" class="btn btn-primary">issue currency</button>
 </form>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
 <script>
 var mode = '{{ mode }}';
 var walletId = '{{ wallet_id }}';

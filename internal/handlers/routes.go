@@ -41,9 +41,8 @@ const (
 	RouteAdminAuditLogs     = "/api/v1/admin/audit-logs"
 	RouteAdminWalletsSearch = "/api/v1/admin/wallets/search"
 	RouteDashboard          = "/api/v1/dashboard"
-	RouteSignInPage         = "/signin"
-	RouteWalletsPage        = "/wallets"
-	RouteHealth             = "/health"
+	RouteSignInPage  = "/signin"
+	RouteHealth      = "/health"
 )
 
 func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, cfg *config.Config) {
@@ -92,10 +91,6 @@ func registerPublicRoutes(r chi.Router, webHandler *WebHandler,
 	})
 	r.Get(RouteSignInPage, webHandler.SignInPage)
 	r.Get("/dashboard", webHandler.DashboardPage)
-	r.Get(RouteWalletsPage, webHandler.WalletsPage)
-	r.Get("/wallets/{id}", webHandler.WalletDetailPage)
-	r.Get("/transactions", webHandler.TransactionsPage)
-	r.Get("/transfer", webHandler.TransferPage)
 	r.Get(RouteHealth, healthHandler)
 	r.Post(RouteSignIn, authHandler.SignIn)
 	r.Post(RouteAdminLogin, adminAPIHandler.Login)

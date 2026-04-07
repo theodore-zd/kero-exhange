@@ -1,86 +1,297 @@
-{% extends "base.grov" %}
+{% extends "user/base.grov" %}
 
 {% block title %}dashboard — kero-exchange{% endblock %}
 
-{% block nav %}
-{% include "components/nav.grov" active=active %}
-{% endblock %}
+{% block user_content %}
+<div class="dashboard-content">
 
-{% block content %}
-<div class="page-header">
-    <h1>dashboard</h1>
-</div>
+    <!-- Page header -->
+    <div class="page-title">dashboard</div>
+    <div class="page-subtitle" id="wallet-subtitle"></div>
 
-<div id="error" class="alert alert-error" style="display:none;"></div>
+    <div id="error" class="alert alert-error" style="display:none;"></div>
 
-<div id="stats" class="stats-grid" style="display:none;">
-    <div class="stat-card">
-        <div class="stat-label">wallets</div>
-        <div class="stat-value" id="wallet-count">&#8212;</div>
+    <!-- Summary stats -->
+    <div id="stats-section" class="stats-grid" style="display:none;"></div>
+
+    <!-- Balances + Transfer side by side -->
+    <div class="dashboard-columns">
+
+        <!-- Balances -->
+        <div class="section-card" id="balances-section">
+            <h2>balances</h2>
+            <div id="balances-loading" class="loading-indicator">loading balances</div>
+            <table id="balances-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>currency</th>
+                        <th>amount</th>
+                    </tr>
+                </thead>
+                <tbody id="balances-body"></tbody>
+            </table>
+            <div id="no-balances" class="empty-state" style="display:none;">no balances yet</div>
+        </div>
+
+        <!-- Transfer -->
+        <div class="section-card" id="transfer-section">
+            <h2>transfer</h2>
+            <div id="transfer-error" class="alert alert-error" style="display:none;"></div>
+            <div id="transfer-success" class="alert alert-success" style="display:none;"></div>
+            <div id="no-balances-msg" class="empty-state" style="display:none;">no balances available</div>
+            <form id="transfer-form" style="display:none;">
+                <div class="form-group">
+                    <label for="destination">destination wallet uuid</label>
+                    <input type="text" id="destination" name="destination" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                </div>
+                <div class="form-group">
+                    <label for="currency">currency</label>
+                    <select id="currency" name="currency" required>
+                        <option value="">select currency</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">amount</label>
+                    <input type="number" id="amount" name="amount" required min="0.00000001" step="0.00000001" />
+                </div>
+                <button type="submit" class="btn btn-primary">transfer</button>
+            </form>
+        </div>
+
     </div>
-    <div class="stat-card">
-        <div class="stat-label">currencies</div>
-        <div class="stat-value" id="currency-count">&#8212;</div>
-    </div>
-</div>
 
-<h2>balances</h2>
-<div id="balances-loading">loading&#x2026;</div>
-<table id="balances-table" style="display:none;">
-    <thead>
-        <tr>
-            <th>currency</th>
-            <th>amount</th>
-        </tr>
-    </thead>
-    <tbody id="balances-body"></tbody>
-</table>
-<div id="no-balances" style="display:none;">no balances found</div>
+    <!-- Transactions (full width) -->
+    <div class="section-card" id="transactions-section">
+        <h2>recent transactions</h2>
+        <div class="filter-bar">
+            <label for="type-filter">type</label>
+            <select id="type-filter">
+                <option value="">all</option>
+                <option value="deposit">deposit</option>
+                <option value="withdrawal">withdrawal</option>
+                <option value="transfer">transfer</option>
+                <option value="admin_issued">admin issued</option>
+            </select>
+        </div>
+        <div id="tx-loading" class="loading-indicator">loading transactions</div>
+        <table id="tx-table" style="display:none;">
+            <thead>
+                <tr>
+                    <th>date</th>
+                    <th>type</th>
+                    <th>amount</th>
+                    <th>currency</th>
+                    <th>reference</th>
+                </tr>
+            </thead>
+            <tbody id="tx-body"></tbody>
+        </table>
+        <div id="no-tx" class="empty-state" style="display:none;">no transactions yet</div>
+        <div id="pagination"></div>
+    </div>
+
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/app.js"></script>
 <script>
-(async function() {
-    var errorDiv = document.getElementById('error');
+if (!requireAuth()) throw new Error('redirect');
+
+var walletId = getWalletUUID();
+var balancesData = [];
+
+var walletSub = document.getElementById('wallet-subtitle');
+if (walletSub && walletId) {
+    walletSub.textContent = 'wallet: ' + walletId;
+}
+
+// --- load balances ---
+async function loadBalances() {
     try {
-        var resp = await apiFetch('/api/v1/dashboard');
-        if (!resp) return;
-        if (!resp.ok) {
-            var errData = await resp.json();
-            errorDiv.textContent = errData.error || 'failed to load dashboard';
-            errorDiv.style.display = '';
+        var resp = await apiFetch('/api/v1/balances?wallet_id=' + walletId);
+        var result = await parseResponse(resp, 'balances');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load balances');
             return;
         }
-        var data = await resp.json();
-
-        document.getElementById('wallet-count').textContent = data.wallet_count != null ? data.wallet_count : '—';
-        document.getElementById('currency-count').textContent = data.currency_count != null ? data.currency_count : '—';
-        document.getElementById('stats').style.display = '';
-
+        balancesData = result.data || [];
         var tbody = document.getElementById('balances-body');
-        var balances = data.balances || [];
-        if (balances.length === 0) {
+        if (balancesData.length === 0) {
             document.getElementById('no-balances').style.display = '';
+            document.getElementById('no-balances-msg').style.display = '';
         } else {
-            balances.forEach(function(b) {
+            // populate stat cards
+            var statsSection = document.getElementById('stats-section');
+            statsSection.innerHTML = '';
+            balancesData.forEach(function(b) {
+                var card = document.createElement('div');
+                card.className = 'stat-card';
+                var label = document.createElement('div');
+                label.className = 'label';
+                label.textContent = b.currency_code || 'unknown';
+                var value = document.createElement('div');
+                value.className = 'value';
+                value.textContent = b.balance || '0';
+                card.appendChild(label);
+                card.appendChild(value);
+                statsSection.appendChild(card);
+            });
+            statsSection.style.display = '';
+
+            // populate balances table
+            balancesData.forEach(function(b) {
                 var tr = document.createElement('tr');
                 var tdCurr = document.createElement('td');
-                tdCurr.textContent = b.currency_code || b.currency_id || '—';
+                tdCurr.textContent = b.currency_code || '\u2014';
                 var tdAmt = document.createElement('td');
-                tdAmt.textContent = b.amount;
+                tdAmt.textContent = b.balance || '\u2014';
                 tr.appendChild(tdCurr);
                 tr.appendChild(tdAmt);
                 tbody.appendChild(tr);
             });
             document.getElementById('balances-table').style.display = '';
+            setupTransferForm();
         }
     } catch (err) {
-        errorDiv.textContent = 'network error';
-        errorDiv.style.display = '';
+        showError('error', 'network error');
     } finally {
         document.getElementById('balances-loading').style.display = 'none';
     }
-})();
+}
+
+// --- transfer form ---
+function setupTransferForm() {
+    var form = document.getElementById('transfer-form');
+    var select = document.getElementById('currency');
+    while (select.children.length > 1) select.removeChild(select.lastChild);
+    balancesData.forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b.currency_id || b.uuid;
+        opt.textContent = b.currency_code + ' (' + (b.balance || '0') + ')' + (b.currency_name ? ' \u2014 ' + b.currency_name : '');
+        select.appendChild(opt);
+    });
+    form.style.display = '';
+}
+
+document.getElementById('transfer-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var errEl = document.getElementById('transfer-error');
+    var successEl = document.getElementById('transfer-success');
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    var destination = document.getElementById('destination').value.trim();
+    var currencyId = document.getElementById('currency').value;
+    var amount = document.getElementById('amount').value;
+
+    if (!currencyId) { showError('transfer-error', 'select a currency'); return; }
+    if (!confirm('transfer ' + amount + ' to wallet ' + destination + '?')) return;
+
+    try {
+        var resp = await apiFetch('/api/v1/transfers', {
+            method: 'POST',
+            body: { destination_wallet_id: destination, currency_id: currencyId, amount: amount }
+        });
+        var result = await parseResponse(resp, 'transfer');
+        if (!result || result._error) {
+            showError('transfer-error', result ? result._error : 'transfer failed');
+            return;
+        }
+        successEl.textContent = 'transfer complete \u2014 ' + (result.debit ? result.debit.amount : amount) + ' sent';
+        successEl.style.display = '';
+        document.getElementById('destination').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('currency').value = '';
+        // reload balances and transactions to reflect the transfer
+        loadBalances();
+        loadTransactions();
+    } catch (err) {
+        showError('transfer-error', 'network error');
+    }
+});
+
+// --- load transactions ---
+var currentPage = parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10);
+var currentType = new URLSearchParams(window.location.search).get('type') || '';
+document.getElementById('type-filter').value = currentType;
+
+document.getElementById('type-filter').addEventListener('change', function() {
+    var url = '?page=1';
+    if (this.value) url += '&type=' + encodeURIComponent(this.value);
+    window.location.href = url;
+});
+
+function currencyCodeFromId(id) {
+    for (var i = 0; i < balancesData.length; i++) {
+        if (balancesData[i].currency_id === id) return balancesData[i].currency_code;
+    }
+    return null;
+}
+
+async function loadTransactions() {
+    var tbody = document.getElementById('tx-body');
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    document.getElementById('tx-table').style.display = 'none';
+    document.getElementById('no-tx').style.display = 'none';
+    document.getElementById('tx-loading').style.display = '';
+
+    try {
+        var url = '/api/v1/transactions?wallet_id=' + walletId + '&page=' + currentPage;
+        if (currentType) url += '&type=' + encodeURIComponent(currentType);
+
+        var resp = await apiFetch(url);
+        var result = await parseResponse(resp, 'transactions');
+        if (!result || result._error) {
+            showError('error', result ? result._error : 'failed to load transactions');
+            return;
+        }
+        var txs = result.data || [];
+        var meta = result.meta || {};
+
+        if (txs.length === 0) {
+            document.getElementById('no-tx').style.display = '';
+        } else {
+            txs.forEach(function(t) {
+                var tr = document.createElement('tr');
+
+                var tdDate = document.createElement('td');
+                tdDate.textContent = formatDate(t.created_at);
+                tr.appendChild(tdDate);
+
+                var tdType = document.createElement('td');
+                var typeSpan = document.createElement('span');
+                typeSpan.className = 'tx-type tx-type--' + (t.type || 'transfer');
+                typeSpan.textContent = t.type || '\u2014';
+                tdType.appendChild(typeSpan);
+                tr.appendChild(tdType);
+
+                var tdAmount = document.createElement('td');
+                tdAmount.textContent = t.amount;
+                tr.appendChild(tdAmount);
+
+                var tdCurrency = document.createElement('td');
+                tdCurrency.textContent = t.currency_code || currencyCodeFromId(t.currency_id) || t.currency_id || '\u2014';
+                tr.appendChild(tdCurrency);
+
+                var tdRef = document.createElement('td');
+                tdRef.textContent = t.reference || '\u2014';
+                tr.appendChild(tdRef);
+
+                tbody.appendChild(tr);
+            });
+            document.getElementById('tx-table').style.display = '';
+        }
+
+        renderPagination('pagination', meta, { type: currentType });
+    } catch (err) {
+        showError('error', 'network error');
+    } finally {
+        document.getElementById('tx-loading').style.display = 'none';
+    }
+}
+
+// --- init ---
+loadBalances();
+loadTransactions();
 </script>
 {% endblock %}

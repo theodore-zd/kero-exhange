@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}user lookup — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -28,7 +27,9 @@
     <tbody id="results-body"></tbody>
 </table>
 <div id="no-results" style="display:none;">no results found</div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 document.getElementById('search-btn').addEventListener('click', async function() {
     var query = document.getElementById('search-input').value.trim();

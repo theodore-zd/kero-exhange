@@ -1,9 +1,6 @@
+{% props %}
 <nav class="top-nav">
-    <span class="brand">kero-exchange</span>
-    <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">dashboard</a>
-    <a href="/wallets" class="{% if active == 'wallets' %}active{% endif %}">wallets</a>
-    <a href="/transactions" class="{% if active == 'transactions' %}active{% endif %}">transactions</a>
-    <a href="/transfer" class="{% if active == 'transfer' %}active{% endif %}">transfer</a>
+    <a href="/dashboard" class="brand">kero-exchange</a>
     <span class="spacer"></span>
     <a href="#" onclick="signOut(); return false;">sign out</a>
 </nav>

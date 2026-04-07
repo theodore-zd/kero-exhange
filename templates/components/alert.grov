@@ -1,3 +1,4 @@
+{% props error, success %}
 {% if error %}
 <div class="alert alert-error">{{ error }}</div>
 {% endif %}

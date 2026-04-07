@@ -1,6 +1,5 @@
 {% extends "admin/base.grov" %}
 
-
 {% block title %}audit log — kero admin{% endblock %}
 
 {% block admin_content %}
@@ -41,7 +40,9 @@
 </table>
 <div id="no-logs" style="display:none;">no audit log entries found</div>
 <div id="pagination"></div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 var params = new URLSearchParams(window.location.search);
 var currentPage = parseInt(params.get('page') || '1', 10);

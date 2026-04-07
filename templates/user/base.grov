@@ -1,0 +1,18 @@
+{% extends "base.grov" %}
+
+{% block head %}
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/app.js"></script>
+{% endblock %}
+
+{% block nav %}
+{% component "components/nav" %}{% endcomponent %}
+{% endblock %}
+
+{% block content %}
+<div class="layout">
+    <div class="main-content">
+        {% block user_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
