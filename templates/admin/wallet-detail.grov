@@ -11,9 +11,9 @@
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="loading">loading&#x2026;</div>
 
-<div id="wallet-info" style="display:none;">
+<div id="wallet-info" class="section-card" style="display:none;">
     <h2>wallet</h2>
-    <dl>
+    <dl class="dl-grid">
         <dt>uuid</dt><dd id="wallet-uuid">&#8212;</dd>
         <dt>created</dt><dd id="wallet-created">&#8212;</dd>
     </dl>
@@ -23,7 +23,7 @@
     </div>
 </div>
 
-<div id="balances-section" style="display:none;">
+<div id="balances-section" class="section-card" style="display:none;">
     <h2>balances</h2>
     <table>
         <thead><tr><th>currency</th><th>amount</th></tr></thead>
@@ -31,7 +31,7 @@
     </table>
 </div>
 
-<div id="transactions-section" style="display:none;">
+<div id="transactions-section" class="section-card" style="display:none;">
     <h2>transactions</h2>
     <table>
         <thead>
@@ -39,18 +39,21 @@
         </thead>
         <tbody id="transactions-body"></tbody>
     </table>
+    <div id="tx-pagination"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 var walletId = '{{ wallet_id }}';
+var urlParams = new URLSearchParams(window.location.search);
+var txPage = parseInt(urlParams.get('tx_page') || '1', 10);
 
 (async function() {
     try {
         var results = await Promise.all([
             adminFetch('/api/v1/admin/wallets/' + walletId + '/balances'),
-            adminFetch('/api/v1/admin/transactions?wallet_id=' + walletId)
+            adminFetch('/api/v1/admin/transactions?wallet_id=' + walletId + '&page=' + txPage)
         ]);
 
         document.getElementById('wallet-uuid').textContent = walletId;
@@ -58,14 +61,19 @@ var walletId = '{{ wallet_id }}';
         document.getElementById('issue-link').href = '/admin/wallets/' + walletId + '/issue-currency';
         document.getElementById('wallet-info').style.display = '';
 
+        // Build currency map from balances
+        var currencyMap = {};
         var balancesResult = await parseResponse(results[0], 'wallet-detail/balances');
         if (balancesResult && !balancesResult._error) {
             var balances = balancesResult.data || [];
             var bTbody = document.getElementById('balances-body');
             balances.forEach(function(b) {
+                if (b.currency_id && b.currency_code) {
+                    currencyMap[b.currency_id] = b.currency_code;
+                }
                 var tr = document.createElement('tr');
                 var tdC = document.createElement('td');
-                tdC.textContent = b.currency_code || b.currency_id || '—';
+                tdC.textContent = b.currency_code || b.currency_id || '\u2014';
                 var tdA = document.createElement('td');
                 tdA.textContent = b.amount;
                 tr.appendChild(tdC);
@@ -80,25 +88,74 @@ var walletId = '{{ wallet_id }}';
         var txResult = await parseResponse(results[1], 'wallet-detail/transactions');
         if (txResult && !txResult._error) {
             var txs = txResult.data || [];
+            var txMeta = txResult.meta || {};
             var tTbody = document.getElementById('transactions-body');
             txs.forEach(function(t) {
                 var tr = document.createElement('tr');
-                var cells = [
-                    formatDate(t.created_at),
-                    t.type || '—',
-                    t.amount,
-                    null,
-                    t.reference || '—'
-                ];
-                cells.forEach(function(val) {
-                    var td = document.createElement('td');
-                    if (val !== null) td.textContent = val;
-                    tr.appendChild(td);
-                });
-                tr.cells[3].appendChild(truncateUUID(t.currency_id));
+
+                var tdDate = document.createElement('td');
+                tdDate.textContent = formatDate(t.timestamp || t.created_at);
+                tr.appendChild(tdDate);
+
+                var tdType = document.createElement('td');
+                var typeBadge = document.createElement('span');
+                typeBadge.className = 'tx-type tx-type--' + (t.type || '');
+                typeBadge.textContent = t.type || '\u2014';
+                tdType.appendChild(typeBadge);
+                tr.appendChild(tdType);
+
+                var tdAmount = document.createElement('td');
+                tdAmount.textContent = t.amount || '\u2014';
+                tr.appendChild(tdAmount);
+
+                var tdCurrency = document.createElement('td');
+                var code = currencyMap[t.currency_id];
+                if (code) {
+                    tdCurrency.textContent = code;
+                } else {
+                    tdCurrency.appendChild(truncateUUID(t.currency_id || ''));
+                }
+                tr.appendChild(tdCurrency);
+
+                var tdRef = document.createElement('td');
+                tdRef.textContent = t.reference || '\u2014';
+                tr.appendChild(tdRef);
+
                 tTbody.appendChild(tr);
             });
             document.getElementById('transactions-section').style.display = '';
+
+            // Render pagination using tx_page param to avoid conflicting with main page
+            if (txMeta.total_pages > 1) {
+                var container = document.getElementById('tx-pagination');
+                container.className = 'pagination';
+                function txHref(p) { return '?tx_page=' + p; }
+                if (txPage > 1) {
+                    var prev = document.createElement('a');
+                    prev.href = txHref(txPage - 1);
+                    prev.textContent = '\u2039 prev';
+                    container.appendChild(prev);
+                }
+                for (var i = 1; i <= txMeta.total_pages; i++) {
+                    if (i === txPage) {
+                        var span = document.createElement('span');
+                        span.className = 'active';
+                        span.textContent = i;
+                        container.appendChild(span);
+                    } else {
+                        var link = document.createElement('a');
+                        link.href = txHref(i);
+                        link.textContent = i;
+                        container.appendChild(link);
+                    }
+                }
+                if (txPage < txMeta.total_pages) {
+                    var next = document.createElement('a');
+                    next.href = txHref(txPage + 1);
+                    next.textContent = 'next \u203A';
+                    container.appendChild(next);
+                }
+            }
         } else if (txResult && txResult._error) {
             showError('error', 'failed to load transactions: ' + txResult._error);
         }

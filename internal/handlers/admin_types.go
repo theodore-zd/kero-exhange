@@ -58,6 +58,11 @@ type CreateCurrencyRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
+type UpdateCurrencyRequest struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+}
+
 type CurrencyAdminResponse struct {
 	UUID        string  `json:"uuid"`
 	Code        string  `json:"code"`

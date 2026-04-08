@@ -11,6 +11,7 @@
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="loading">loading&#x2026;</div>
 
+<div class="section-card">
 <table id="currencies-table" style="display:none;">
     <thead>
         <tr>
@@ -24,6 +25,7 @@
 </table>
 <div id="no-currencies" style="display:none;">no currencies found</div>
 <div id="pagination"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -54,14 +56,25 @@
                     tr.appendChild(td);
                 });
                 var tdActions = document.createElement('td');
+
+                var editLink = document.createElement('a');
+                editLink.href = '/admin/currencies/' + c.uuid + '/edit';
+                editLink.textContent = 'edit';
+                editLink.className = 'btn btn-secondary btn-sm';
+                tdActions.appendChild(editLink);
+                tdActions.appendChild(document.createTextNode(' '));
+
                 var delBtn = document.createElement('button');
                 delBtn.textContent = 'delete';
                 delBtn.className = 'btn btn-danger btn-sm';
                 delBtn.addEventListener('click', async function() {
-                    if (!confirm('delete currency ' + c.code + '?')) return;
+                    delBtn.disabled = true;
+                    delBtn.textContent = 'deleting\u2026';
                     var dr = await adminFetch('/api/v1/admin/currencies/' + c.uuid, { method: 'DELETE' });
                     if (dr && dr.ok) { tr.remove(); } else {
                         showError('error', 'failed to delete currency ' + c.code);
+                        delBtn.disabled = false;
+                        delBtn.textContent = 'delete';
                     }
                 });
                 tdActions.appendChild(delBtn);

@@ -16,6 +16,7 @@
 </div>
 
 <div id="loading" style="display:none;">searching&#x2026;</div>
+<div class="section-card">
 <table id="results-table" style="display:none;">
     <thead>
         <tr>
@@ -27,6 +28,7 @@
     <tbody id="results-body"></tbody>
 </table>
 <div id="no-results" style="display:none;">no results found</div>
+</div>
 {% endblock %}
 
 {% block scripts %}

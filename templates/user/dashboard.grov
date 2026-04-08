@@ -185,7 +185,6 @@ document.getElementById('transfer-form').addEventListener('submit', async functi
     var amount = document.getElementById('amount').value;
 
     if (!currencyId) { showError('transfer-error', 'select a currency'); return; }
-    if (!confirm('transfer ' + amount + ' to wallet ' + destination + '?')) return;
 
     try {
         var resp = await apiFetch('/api/v1/transfers', {

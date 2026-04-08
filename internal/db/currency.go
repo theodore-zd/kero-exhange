@@ -115,6 +115,30 @@ func GetCurrencies(ctx context.Context, pool *pgxpool.Pool, params PaginationPar
 	)
 }
 
+type UpdateCurrencyParams struct {
+	Name        string
+	Description *string
+}
+
+func UpdateCurrency(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, params UpdateCurrencyParams) (*Currency, error) {
+	query := `
+		UPDATE currencies SET name = $2, description = $3
+		WHERE uuid = $1 AND deleted_at IS NULL
+		RETURNING uuid, code, name, description, created_at, deleted_at
+	`
+	var c Currency
+	err := pool.QueryRow(ctx, query, id, params.Name, params.Description).Scan(
+		&c.UUID, &c.Code, &c.Name, &c.Description, &c.CreatedAt, &c.DeletedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("update currency: %w", err)
+	}
+	return &c, nil
+}
+
 func DeleteCurrency(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {

@@ -10,8 +10,9 @@
     <a href="/admin/providers" class="btn btn-secondary">back</a>
 </div>
 
+<div class="page-body--narrow">
 <div id="error" class="alert alert-error" style="display:none;"></div>
-<div id="result-panel" style="display:none;">
+<div id="result-panel" class="section-card" style="display:none;">
     <div class="alert alert-success">
         {% if mode == "edit" %}api key regenerated{% else %}provider created{% endif %}
     </div>
@@ -22,9 +23,10 @@
     <a href="/admin/providers" class="btn btn-secondary">back to providers</a>
 </div>
 
+<div class="section-card">
 <form id="provider-form">
     {% if mode == "edit" %}
-    <p>regenerate the API key for provider <strong>{{ provider_id }}</strong>. the old key will be invalidated.</p>
+    <p class="form-help">regenerate the API key for provider <strong>{{ provider_id }}</strong>. the old key will be invalidated.</p>
     <button type="submit" class="btn btn-primary">regenerate key</button>
     {% else %}
     <div class="form-group">
@@ -34,6 +36,8 @@
     <button type="submit" class="btn btn-primary">create provider</button>
     {% endif %}
 </form>
+</div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -45,6 +49,10 @@ document.getElementById('provider-form').addEventListener('submit', async functi
     e.preventDefault();
     var errorDiv = document.getElementById('error');
     errorDiv.style.display = 'none';
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'working\u2026';
     try {
         var resp;
         if (mode === 'edit') {
@@ -62,6 +70,8 @@ document.getElementById('provider-form').addEventListener('submit', async functi
         var result = await parseResponse(resp, 'provider-form/' + mode);
         if (!result || result._error) {
             showError('error', result ? result._error : 'operation failed');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
             return;
         }
         var data = result;
@@ -70,6 +80,8 @@ document.getElementById('provider-form').addEventListener('submit', async functi
         document.getElementById('result-panel').style.display = '';
     } catch (err) {
         showError('error', 'operation failed', err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 });
 </script>

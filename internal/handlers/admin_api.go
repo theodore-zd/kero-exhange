@@ -343,6 +343,43 @@ func (h *AdminAPIHandler) DeleteCurrency(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *AdminAPIHandler) UpdateCurrency(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUIDOrError(w, r, "id", "INVALID_UUID", "Invalid currency UUID")
+	if !ok {
+		return
+	}
+
+	var req UpdateCurrencyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.WriteJSONError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", nil)
+		return
+	}
+
+	if req.Name == "" {
+		common.WriteJSONError(w, http.StatusBadRequest, "MISSING_NAME", "Currency name is required", nil)
+		return
+	}
+
+	currency, err := h.svc.UpdateCurrency(r.Context(), id, req.Name, req.Description, "admin", getClientIP(r), r.UserAgent())
+	if err != nil {
+		common.LogError("UpdateCurrency failed", "currency_id", id, "error", err)
+		if strings.Contains(err.Error(), "not found") {
+			common.WriteJSONError(w, http.StatusNotFound, "NOT_FOUND", "Currency not found", nil)
+			return
+		}
+		common.WriteJSONError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update currency", nil)
+		return
+	}
+
+	common.WriteJSONResponse(w, http.StatusOK, CurrencyAdminResponse{
+		UUID:        currency.UUID.String(),
+		Code:        currency.Code,
+		Name:        currency.Name,
+		Description: currency.Description,
+		CreatedAt:   currency.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	})
+}
+
 func (h *AdminAPIHandler) GetWalletBalances(w http.ResponseWriter, r *http.Request) {
 	walletID, ok := parseUUIDOrError(w, r, "id", "INVALID_UUID", "Invalid wallet UUID")
 	if !ok {
@@ -539,6 +576,19 @@ func (h *AdminAPIHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) 
 
 	if entityType := common.ParseQueryStringPtr(r, "entity_type"); entityType != nil {
 		filter.EntityType = *entityType
+	}
+
+	if startDate := r.URL.Query().Get("start_date"); startDate != "" {
+		if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			filter.StartDate = &t
+		}
+	}
+
+	if endDate := r.URL.Query().Get("end_date"); endDate != "" {
+		if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			end := t.Add(24*time.Hour - time.Second)
+			filter.EndDate = &end
+		}
 	}
 
 	svc := services.NewAuditLogService(h.pool)

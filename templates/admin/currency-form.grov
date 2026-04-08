@@ -1,19 +1,22 @@
 {% extends "admin/base.grov" %}
 
-{% block title %}create currency — kero admin{% endblock %}
+{% block title %}{% if mode == "edit" %}edit currency{% else %}create currency{% endif %} — kero admin{% endblock %}
 
 {% block admin_content %}
 <div class="page-header">
-    <h1>create currency</h1>
+    <h1>{% if mode == "edit" %}edit currency{% else %}create currency{% endif %}</h1>
     <a href="/admin/currencies" class="btn btn-secondary">back</a>
 </div>
 
+<div class="page-body--narrow">
 <div id="error" class="alert alert-error" style="display:none;"></div>
+<div id="loading" style="display:none;">loading&#x2026;</div>
 
+<div class="section-card">
 <form id="currency-form">
     <div class="form-group">
         <label for="code">code</label>
-        <input type="text" id="code" name="code" required maxlength="10" placeholder="e.g. USD" />
+        <input type="text" id="code" name="code" required maxlength="10" placeholder="e.g. USD" {% if mode == "edit" %}readonly{% endif %} />
     </div>
     <div class="form-group">
         <label for="name">name</label>
@@ -23,30 +26,75 @@
         <label for="description">description</label>
         <input type="text" id="description" name="description" placeholder="optional" />
     </div>
-    <button type="submit" class="btn btn-primary">create currency</button>
+    <button type="submit" class="btn btn-primary">{% if mode == "edit" %}save changes{% else %}create currency{% endif %}</button>
 </form>
+</div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+var mode = '{{ mode }}';
+var currencyId = '{{ currency_id }}';
+
+if (mode === 'edit') {
+    document.getElementById('loading').style.display = '';
+    document.getElementById('currency-form').style.display = 'none';
+    (async function() {
+        try {
+            var resp = await adminFetch('/api/v1/admin/currencies?page_size=100');
+            var result = await parseResponse(resp, 'currency-form/load');
+            if (result && !result._error) {
+                var currencies = result.data || [];
+                var currency = currencies.find(function(c) { return c.uuid === currencyId; });
+                if (currency) {
+                    document.getElementById('code').value = currency.code || '';
+                    document.getElementById('name').value = currency.name || '';
+                    document.getElementById('description').value = currency.description || '';
+                }
+            }
+        } catch (err) {
+            showError('error', 'failed to load currency', err);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('currency-form').style.display = '';
+        }
+    })();
+}
+
 document.getElementById('currency-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     document.getElementById('error').style.display = 'none';
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'working\u2026';
     var code = document.getElementById('code').value.trim();
     var name = document.getElementById('name').value.trim();
     var description = document.getElementById('description').value.trim();
     try {
-        var body = { code: code, name: name };
-        if (description) body.description = description;
-        var resp = await adminFetch('/api/v1/admin/currencies', { method: 'POST', body: body });
-        var result = await parseResponse(resp, 'currency-form/create');
+        var resp;
+        if (mode === 'edit') {
+            var body = { name: name };
+            if (description) body.description = description;
+            resp = await adminFetch('/api/v1/admin/currencies/' + currencyId, { method: 'PUT', body: body });
+        } else {
+            var body = { code: code, name: name };
+            if (description) body.description = description;
+            resp = await adminFetch('/api/v1/admin/currencies', { method: 'POST', body: body });
+        }
+        var result = await parseResponse(resp, 'currency-form/' + mode);
         if (!result || result._error) {
-            showError('error', result ? result._error : 'failed to create currency');
+            showError('error', result ? result._error : 'operation failed');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
             return;
         }
         window.location.href = '/admin/currencies';
     } catch (err) {
-        showError('error', 'failed to create currency', err);
+        showError('error', 'operation failed', err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 });
 </script>

@@ -8,21 +8,24 @@
 </div>
 
 <div id="error" class="alert alert-error" style="display:none;"></div>
-<div id="stats" class="stats-grid" style="display:none;">
-    <div class="stat-card">
-        <div class="label">providers</div>
-        <div class="value" id="provider-count">&#8212;</div>
+<div class="section-card">
+    <h2>overview</h2>
+    <div id="stats" class="stats-grid" style="display:none;">
+        <div class="stat-card">
+            <div class="label">providers</div>
+            <div class="value" id="provider-count">&#8212;</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">wallets</div>
+            <div class="value" id="wallet-count">&#8212;</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">currencies</div>
+            <div class="value" id="currency-count">&#8212;</div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="label">wallets</div>
-        <div class="value" id="wallet-count">&#8212;</div>
-    </div>
-    <div class="stat-card">
-        <div class="label">currencies</div>
-        <div class="value" id="currency-count">&#8212;</div>
-    </div>
+    <div id="loading">loading&#x2026;</div>
 </div>
-<div id="loading">loading&#x2026;</div>
 {% endblock %}
 
 {% block scripts %}

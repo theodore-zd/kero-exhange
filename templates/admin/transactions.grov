@@ -16,13 +16,23 @@
         <option value="deposit">deposit</option>
         <option value="withdrawal">withdrawal</option>
         <option value="transfer">transfer</option>
+        <option value="admin_issued">admin_issued</option>
     </select>
     <label for="wallet-filter">wallet uuid</label>
     <input type="text" id="wallet-filter" placeholder="wallet uuid" style="width:20rem;" />
+
+    <label for="from-filter">from</label>
+    <input type="date" id="from-filter" />
+
+    <label for="to-filter">to</label>
+    <input type="date" id="to-filter" />
+
     <button id="apply-filter" class="btn btn-secondary">apply</button>
+    <button id="clear-filter" class="btn btn-secondary">clear</button>
 </div>
 
 <div id="loading">loading&#x2026;</div>
+<div class="section-card">
 <table id="tx-table" style="display:none;">
     <thead>
         <tr>
@@ -38,6 +48,7 @@
 </table>
 <div id="no-tx" style="display:none;">no transactions found</div>
 <div id="pagination"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -46,24 +57,50 @@ var params = new URLSearchParams(window.location.search);
 var currentPage = parseInt(params.get('page') || '1', 10);
 var currentType = params.get('type') || '';
 var currentWallet = params.get('wallet_id') || '';
+var currentFrom = params.get('from') || '';
+var currentTo = params.get('to') || '';
 
 document.getElementById('type-filter').value = currentType;
 document.getElementById('wallet-filter').value = currentWallet;
+document.getElementById('from-filter').value = currentFrom;
+document.getElementById('to-filter').value = currentTo;
 
 document.getElementById('apply-filter').addEventListener('click', function() {
     var type = document.getElementById('type-filter').value;
     var wallet = document.getElementById('wallet-filter').value.trim();
+    var from = document.getElementById('from-filter').value;
+    var to = document.getElementById('to-filter').value;
     var url = '?page=1';
     if (type) url += '&type=' + encodeURIComponent(type);
     if (wallet) url += '&wallet_id=' + encodeURIComponent(wallet);
+    if (from) url += '&from=' + encodeURIComponent(from);
+    if (to) url += '&to=' + encodeURIComponent(to);
     window.location.href = url;
+});
+
+document.getElementById('clear-filter').addEventListener('click', function() {
+    window.location.href = '?page=1';
 });
 
 (async function() {
     try {
+        // Fetch currencies for code lookup
+        var currencyMap = {};
+        try {
+            var cResp = await adminFetch('/api/v1/admin/currencies?page_size=100');
+            var cResult = await parseResponse(cResp, 'transactions/currencies');
+            if (cResult && !cResult._error) {
+                (cResult.data || []).forEach(function(c) {
+                    currencyMap[c.uuid] = c.code;
+                });
+            }
+        } catch (e) { /* currency lookup is best-effort */ }
+
         var url = '/api/v1/admin/transactions?page=' + currentPage;
         if (currentType) url += '&type=' + encodeURIComponent(currentType);
         if (currentWallet) url += '&wallet_id=' + encodeURIComponent(currentWallet);
+        if (currentFrom) url += '&from=' + encodeURIComponent(currentFrom);
+        if (currentTo) url += '&to=' + encodeURIComponent(currentTo);
 
         var resp = await adminFetch(url);
         var result = await parseResponse(resp, 'transactions');
@@ -80,26 +117,56 @@ document.getElementById('apply-filter').addEventListener('click', function() {
         } else {
             txs.forEach(function(t) {
                 var tr = document.createElement('tr');
-                var cells = [
-                    formatDate(t.created_at),
-                    t.type || '—',
-                    t.amount,
-                    t.currency_id || '—',
-                    null,
-                    t.reference || '—'
-                ];
-                cells.forEach(function(val) {
-                    var td = document.createElement('td');
-                    if (val !== null) td.textContent = val;
-                    tr.appendChild(td);
-                });
-                tr.cells[4].appendChild(truncateUUID(t.wallet_id));
+
+                // date
+                var tdDate = document.createElement('td');
+                tdDate.textContent = formatDate(t.timestamp || t.created_at);
+                tr.appendChild(tdDate);
+
+                // type badge
+                var tdType = document.createElement('td');
+                var typeBadge = document.createElement('span');
+                typeBadge.className = 'tx-type tx-type--' + (t.type || '');
+                typeBadge.textContent = t.type || '\u2014';
+                tdType.appendChild(typeBadge);
+                tr.appendChild(tdType);
+
+                // amount
+                var tdAmount = document.createElement('td');
+                tdAmount.textContent = t.amount || '\u2014';
+                tr.appendChild(tdAmount);
+
+                // currency (code if available, else truncated UUID)
+                var tdCurrency = document.createElement('td');
+                var code = currencyMap[t.currency_id];
+                if (code) {
+                    tdCurrency.textContent = code;
+                } else {
+                    tdCurrency.appendChild(truncateUUID(t.currency_id || ''));
+                }
+                tr.appendChild(tdCurrency);
+
+                // wallet
+                var tdWallet = document.createElement('td');
+                tdWallet.appendChild(truncateUUID(t.wallet_id, '/admin/wallets/' + t.wallet_id));
+                tr.appendChild(tdWallet);
+
+                // reference
+                var tdRef = document.createElement('td');
+                tdRef.textContent = t.reference || '\u2014';
+                tr.appendChild(tdRef);
+
                 tbody.appendChild(tr);
             });
             document.getElementById('tx-table').style.display = '';
         }
 
-        renderPagination('pagination', meta, { type: currentType, wallet_id: currentWallet });
+        renderPagination('pagination', meta, {
+            type: currentType,
+            wallet_id: currentWallet,
+            from: currentFrom,
+            to: currentTo
+        });
     } catch (err) {
         showError('error', 'failed to load transactions', err);
     } finally {

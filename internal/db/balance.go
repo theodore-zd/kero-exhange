@@ -105,6 +105,30 @@ type BalanceSummary struct {
 	TotalAmount  decimal.Decimal
 }
 
+func GetBalanceForUpdateTx(ctx context.Context, tx pgx.Tx, walletID, currencyID uuid.UUID) (*Balance, error) {
+	query := `
+		SELECT uuid, wallet_id, currency_id, balance, updated_at
+		FROM balances
+		WHERE wallet_id = $1 AND currency_id = $2 AND deleted_at IS NULL
+		FOR UPDATE
+	`
+	var b Balance
+	err := tx.QueryRow(ctx, query, walletID, currencyID).Scan(
+		&b.UUID,
+		&b.WalletID,
+		&b.CurrencyID,
+		&b.Balance,
+		&b.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get balance for update: %w", err)
+	}
+	return &b, nil
+}
+
 func GetBalanceSummaryByWallet(ctx context.Context, pool *pgxpool.Pool, walletID uuid.UUID) ([]BalanceSummary, error) {
 	rows, err := pool.Query(ctx,
 		`SELECT c.code, c.name, COALESCE(SUM(b.balance), 0) as total

@@ -15,24 +15,30 @@
     <a href="/admin/wallets" class="btn btn-secondary">back to wallets</a>
 </div>
 
+<div class="page-body--narrow">
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="result-panel" style="display:none;"></div>
 
 {% if mode == "create" %}
+<div class="section-card">
 <form id="action-form">
-    <p>create a new wallet. the passphrase and access token will be shown once.</p>
+    <p class="form-help">create a new wallet. the passphrase and access token will be shown once.</p>
     <button type="submit" class="btn btn-primary">create wallet</button>
 </form>
+</div>
 
 {% elif mode == "regenerate" %}
+<div class="section-card">
 <form id="action-form">
-    <p>regenerate the passphrase for wallet <strong>{{ wallet_id }}</strong>. the old passphrase will be invalidated.</p>
+    <p class="form-help">regenerate the passphrase for wallet <strong>{{ wallet_id }}</strong>. the old passphrase will be invalidated.</p>
     <button type="submit" class="btn btn-primary">regenerate passphrase</button>
 </form>
+</div>
 
 {% else %}
+<div class="section-card">
 <form id="action-form">
-    <p>issue currency to wallet <strong>{{ wallet_id }}</strong>.</p>
+    <p class="form-help">issue currency to wallet <strong>{{ wallet_id }}</strong>.</p>
     <div class="form-group">
         <label for="currency">currency</label>
         <select id="currency" name="currency" required>
@@ -45,7 +51,9 @@
     </div>
     <button type="submit" class="btn btn-primary">issue currency</button>
 </form>
+</div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -86,6 +94,10 @@ document.getElementById('action-form').addEventListener('submit', async function
     e.preventDefault();
     var errorDiv = document.getElementById('error');
     errorDiv.style.display = 'none';
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'working\u2026';
     try {
         var resp;
         if (mode === 'create') {
@@ -103,6 +115,8 @@ document.getElementById('action-form').addEventListener('submit', async function
         var result = await parseResponse(resp, 'wallet-form/' + mode);
         if (!result || result._error) {
             showError('error', result ? result._error : 'operation failed');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
             return;
         }
         var data = result;
@@ -155,6 +169,8 @@ document.getElementById('action-form').addEventListener('submit', async function
         panel.style.display = '';
     } catch (err) {
         showError('error', 'operation failed', err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 });
 </script>

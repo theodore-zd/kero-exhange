@@ -226,6 +226,79 @@ func TestTransferToSelf(t *testing.T) {
 	}
 }
 
+func TestTransferConcurrentDrain(t *testing.T) {
+	ctx := context.Background()
+
+	sourceWallet, passphrase, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create source wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, sourceWallet.UUID)
+
+	destWallet, _, err := createTestWallet(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create destination wallet: %v", err)
+	}
+	defer deleteTestWallet(ctx, destWallet.UUID)
+
+	currency, err := createTestCurrency(ctx, "TRC", "Transfer Concurrent")
+	if err != nil {
+		t.Fatalf("Failed to create currency: %v", err)
+	}
+	defer deleteTestCurrency(ctx, currency.UUID)
+
+	_, err = createTestBalance(ctx, sourceWallet.UUID, currency.UUID, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatalf("Failed to create source balance: %v", err)
+	}
+
+	server := setupTestServer(t)
+	defer server.Close()
+
+	token := getTestAccessToken(t, server, passphrase)
+
+	reqBody := fmt.Sprintf(`{"destination_wallet_id":"%s","currency_id":"%s","amount":"100"}`,
+		destWallet.UUID.String(), currency.UUID.String())
+
+	// Fire two concurrent transfers that each try to drain the full balance.
+	// Exactly one should succeed (201) and the other should fail (400 insufficient balance).
+	// Before the fix, the second would hit a DB constraint and return 500.
+	results := make(chan int, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			resp := authPost(t, server, token, "/api/v1/transfers", reqBody)
+			defer resp.Body.Close()
+			io.ReadAll(resp.Body)
+			results <- resp.StatusCode
+		}()
+	}
+
+	var codes []int
+	for i := 0; i < 2; i++ {
+		codes = append(codes, <-results)
+	}
+
+	successCount := 0
+	failCount := 0
+	for _, code := range codes {
+		switch code {
+		case http.StatusCreated:
+			successCount++
+		case http.StatusBadRequest:
+			failCount++
+		default:
+			t.Errorf("Unexpected status code %d — expected 201 or 400, got 500 indicates a race condition", code)
+		}
+	}
+
+	if successCount != 1 {
+		t.Errorf("Expected exactly 1 successful transfer, got %d (codes: %v)", successCount, codes)
+	}
+	if failCount != 1 {
+		t.Errorf("Expected exactly 1 failed transfer, got %d (codes: %v)", failCount, codes)
+	}
+}
+
 func TestTransfer_Unauthenticated(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.Close()

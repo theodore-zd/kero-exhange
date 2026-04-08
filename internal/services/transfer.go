@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -65,14 +66,6 @@ func (s *TransferService) Transfer(ctx context.Context, params TransferParams) (
 		return nil, ErrCurrencyNotFound
 	}
 
-	balance, err := db.GetBalanceByWalletAndCurrency(ctx, s.pool, params.SourceWalletID, params.CurrencyID)
-	if err != nil {
-		return nil, fmt.Errorf("get source balance: %w", err)
-	}
-	if balance == nil || balance.Balance.LessThan(params.Amount) {
-		return nil, ErrInsufficientBalance
-	}
-
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("begin transfer transaction: %w", err)
@@ -82,6 +75,14 @@ func (s *TransferService) Transfer(ctx context.Context, params TransferParams) (
 			_ = tx.Rollback(ctx)
 		}
 	}()
+
+	balance, err := db.GetBalanceForUpdateTx(ctx, tx, params.SourceWalletID, params.CurrencyID)
+	if err != nil {
+		return nil, fmt.Errorf("get source balance: %w", err)
+	}
+	if balance == nil || balance.Balance.LessThan(params.Amount) {
+		return nil, ErrInsufficientBalance
+	}
 
 	transferID := uuid.New()
 
@@ -93,6 +94,9 @@ func (s *TransferService) Transfer(ctx context.Context, params TransferParams) (
 		TransferID: &transferID,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "balances_balance_check") {
+			return nil, ErrInsufficientBalance
+		}
 		return nil, fmt.Errorf("create debit transaction: %w", err)
 	}
 

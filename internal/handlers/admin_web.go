@@ -62,7 +62,12 @@ func (h *AdminWebHandler) CurrenciesPage(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *AdminWebHandler) CurrencyCreatePage(w http.ResponseWriter, r *http.Request) {
-	renderGrove(w, r, "admin/currency-form.grov", grove.Data{"active": "currencies"})
+	renderGrove(w, r, "admin/currency-form.grov", grove.Data{"mode": "create", "active": "currencies"})
+}
+
+func (h *AdminWebHandler) CurrencyEditPage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	renderGrove(w, r, "admin/currency-form.grov", grove.Data{"mode": "edit", "currency_id": id, "active": "currencies"})
 }
 
 func (h *AdminWebHandler) TransactionsPage(w http.ResponseWriter, r *http.Request) {

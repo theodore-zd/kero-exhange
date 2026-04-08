@@ -11,6 +11,7 @@
 <div id="error" class="alert alert-error" style="display:none;"></div>
 <div id="loading">loading&#x2026;</div>
 
+<div class="section-card">
 <table id="providers-table" style="display:none;">
     <thead>
         <tr>
@@ -23,6 +24,7 @@
 </table>
 <div id="no-providers" style="display:none;">no providers found</div>
 <div id="pagination"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -61,10 +63,13 @@
                 delBtn.textContent = 'delete';
                 delBtn.className = 'btn btn-danger btn-sm';
                 delBtn.addEventListener('click', async function() {
-                    if (!confirm('delete provider ' + p.name + '?')) return;
+                    delBtn.disabled = true;
+                    delBtn.textContent = 'deleting\u2026';
                     var dr = await adminFetch('/api/v1/admin/providers/' + p.uuid, { method: 'DELETE' });
                     if (dr && dr.ok) { tr.remove(); } else {
                         showError('error', 'failed to delete provider ' + p.name);
+                        delBtn.disabled = false;
+                        delBtn.textContent = 'delete';
                     }
                 });
 

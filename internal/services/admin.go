@@ -92,11 +92,21 @@ func (s *AdminService) UpdateProviderAPIKey(ctx context.Context, id uuid.UUID, a
 }
 
 func (s *AdminService) DeleteProvider(ctx context.Context, id uuid.UUID, adminUser, ipAddress, userAgent string) error {
+	// Capture provider info before deletion for audit trail
+	providers, _ := db.ListProviders(ctx, s.pool, db.PaginationParams{Page: 1, PageSize: 100})
+	var providerName string
+	for _, p := range providers.Data {
+		if p.UUID == id {
+			providerName = p.Name
+			break
+		}
+	}
+
 	if err := db.DeleteProvider(ctx, s.pool, id); err != nil {
 		return fmt.Errorf("delete provider (provider_id=%s): %w", id, err)
 	}
 
-	if err := s.auditService.LogProviderDeleted(ctx, id, adminUser, ipAddress, userAgent); err != nil {
+	if err := s.auditService.LogProviderDeleted(ctx, id, providerName, adminUser, ipAddress, userAgent); err != nil {
 		common.LogError("Failed to log provider deletion", "error", err)
 	}
 
@@ -232,13 +242,40 @@ func (s *AdminService) CreateCurrency(ctx context.Context, params CreateCurrency
 	return currency, nil
 }
 
+func (s *AdminService) UpdateCurrency(ctx context.Context, id uuid.UUID, name string, description *string, adminUser, ipAddress, userAgent string) (*db.Currency, error) {
+	currency, err := db.UpdateCurrency(ctx, s.pool, id, db.UpdateCurrencyParams{
+		Name:        name,
+		Description: description,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update currency: %w", err)
+	}
+	if currency == nil {
+		return nil, fmt.Errorf("currency not found")
+	}
+
+	if err := s.auditService.LogCurrencyUpdated(ctx, currency, adminUser, ipAddress, userAgent); err != nil {
+		common.LogError("Failed to log currency update", "error", err)
+	}
+
+	return currency, nil
+}
+
 func (s *AdminService) DeleteCurrency(ctx context.Context, id uuid.UUID, adminUser, ipAddress, userAgent string) error {
+	// Capture currency info before deletion for audit trail
+	currency, _ := db.GetCurrencyByUUID(ctx, s.pool, id)
+	var currencyCode, currencyName string
+	if currency != nil {
+		currencyCode = currency.Code
+		currencyName = currency.Name
+	}
+
 	if err := db.DeleteCurrency(ctx, s.pool, id); err != nil {
 		common.LogError("DeleteCurrency service failed", "currency_id", id, "admin_user", adminUser, "error", err)
 		return fmt.Errorf("delete currency (currency_id=%s): %w", id, err)
 	}
 
-	if err := s.auditService.LogCurrencyDeleted(ctx, id, adminUser, ipAddress, userAgent); err != nil {
+	if err := s.auditService.LogCurrencyDeleted(ctx, id, currencyCode, currencyName, adminUser, ipAddress, userAgent); err != nil {
 		common.LogError("Failed to log currency deletion", "currency_id", id, "error", err)
 	}
 

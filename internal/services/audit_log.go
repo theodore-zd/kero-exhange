@@ -65,6 +65,23 @@ func (s *AuditLogService) LogCurrencyCreated(ctx context.Context, currency *db.C
 	})
 }
 
+func (s *AuditLogService) LogCurrencyUpdated(ctx context.Context, currency *db.Currency, adminUser, ipAddress, userAgent string) error {
+	details := map[string]interface{}{
+		"code":        currency.Code,
+		"name":        currency.Name,
+		"description": currency.Description,
+	}
+	return s.LogAction(ctx, CreateAuditLogRequest{
+		Action:     "update_currency",
+		EntityType: "currency",
+		EntityID:   currency.UUID,
+		Details:    details,
+		AdminUser:  adminUser,
+		IPAddress:  ipAddress,
+		UserAgent:  userAgent,
+	})
+}
+
 func (s *AuditLogService) LogCurrencyIssued(ctx context.Context, walletID, currencyID uuid.UUID, amount string, transactionID uuid.UUID, adminUser, ipAddress, userAgent string) error {
 	details := map[string]interface{}{
 		"wallet_id":      walletID.String(),
@@ -99,8 +116,10 @@ func (s *AuditLogService) LogProviderCreated(ctx context.Context, provider *db.P
 	})
 }
 
-func (s *AuditLogService) LogProviderDeleted(ctx context.Context, providerID uuid.UUID, adminUser, ipAddress, userAgent string) error {
-	details := map[string]interface{}{}
+func (s *AuditLogService) LogProviderDeleted(ctx context.Context, providerID uuid.UUID, providerName, adminUser, ipAddress, userAgent string) error {
+	details := map[string]interface{}{
+		"name": providerName,
+	}
 	return s.LogAction(ctx, CreateAuditLogRequest{
 		Action:     "provider_deleted",
 		EntityType: "provider",
@@ -128,7 +147,9 @@ func (s *AuditLogService) LogWalletCreated(ctx context.Context, wallet *db.Walle
 }
 
 func (s *AuditLogService) LogWalletDeleted(ctx context.Context, walletID uuid.UUID, adminUser, ipAddress, userAgent string) error {
-	details := map[string]interface{}{}
+	details := map[string]interface{}{
+		"wallet_uuid": walletID.String(),
+	}
 	return s.LogAction(ctx, CreateAuditLogRequest{
 		Action:     "wallet_deleted",
 		EntityType: "wallet",
@@ -141,7 +162,9 @@ func (s *AuditLogService) LogWalletDeleted(ctx context.Context, walletID uuid.UU
 }
 
 func (s *AuditLogService) LogWalletPassphraseRegenerated(ctx context.Context, walletID uuid.UUID, adminUser, ipAddress, userAgent string) error {
-	details := map[string]interface{}{}
+	details := map[string]interface{}{
+		"wallet_uuid": walletID.String(),
+	}
 	return s.LogAction(ctx, CreateAuditLogRequest{
 		Action:     "wallet_passphrase_regenerated",
 		EntityType: "wallet",
@@ -154,7 +177,9 @@ func (s *AuditLogService) LogWalletPassphraseRegenerated(ctx context.Context, wa
 }
 
 func (s *AuditLogService) LogProviderApiKeyUpdated(ctx context.Context, providerID uuid.UUID, adminUser, ipAddress, userAgent string) error {
-	details := map[string]interface{}{}
+	details := map[string]interface{}{
+		"provider_uuid": providerID.String(),
+	}
 	return s.LogAction(ctx, CreateAuditLogRequest{
 		Action:     "provider_api_key_updated",
 		EntityType: "provider",
@@ -166,8 +191,11 @@ func (s *AuditLogService) LogProviderApiKeyUpdated(ctx context.Context, provider
 	})
 }
 
-func (s *AuditLogService) LogCurrencyDeleted(ctx context.Context, currencyID uuid.UUID, adminUser, ipAddress, userAgent string) error {
-	details := map[string]interface{}{}
+func (s *AuditLogService) LogCurrencyDeleted(ctx context.Context, currencyID uuid.UUID, currencyCode, currencyName, adminUser, ipAddress, userAgent string) error {
+	details := map[string]interface{}{
+		"code": currencyCode,
+		"name": currencyName,
+	}
 	return s.LogAction(ctx, CreateAuditLogRequest{
 		Action:     "currency_deleted",
 		EntityType: "currency",

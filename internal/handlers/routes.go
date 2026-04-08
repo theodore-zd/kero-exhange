@@ -110,6 +110,7 @@ func registerPublicRoutes(r chi.Router, webHandler *WebHandler,
 	r.Get("/admin/wallets/{id}/issue-currency", adminWebHandler.WalletIssueCurrencyPage)
 	r.Get("/admin/currencies", adminWebHandler.CurrenciesPage)
 	r.Get("/admin/currencies/new", adminWebHandler.CurrencyCreatePage)
+	r.Get("/admin/currencies/{id}/edit", adminWebHandler.CurrencyEditPage)
 	r.Get("/admin/transactions", adminWebHandler.TransactionsPage)
 	r.Get("/admin/audit-log", adminWebHandler.AuditLogPage)
 	r.Get("/admin/lookup", adminWebHandler.LookupPage)
@@ -171,6 +172,7 @@ func registerAdminProtectedRoutes(r chi.Router, pool *pgxpool.Pool, adminHandler
 
 		r.Post("/currencies", adminHandler.CreateCurrency)
 		r.Get("/currencies", adminHandler.ListCurrencies)
+		r.Put("/currencies/{id}", adminHandler.UpdateCurrency)
 		r.Delete("/currencies/{id}", adminHandler.DeleteCurrency)
 
 		r.Get("/transactions", adminHandler.ListTransactions)

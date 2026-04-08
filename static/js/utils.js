@@ -74,13 +74,16 @@ function formatDate(isoString) {
 }
 
 /**
- * Returns a DOM element showing a truncated UUID.
+ * Returns a DOM element showing a truncated UUID with click-to-copy.
  * @param {string} uuid - Full UUID string.
  * @param {string} [linkHref] - Optional href to make the element a link.
- * @returns {HTMLElement} An <a> or <span> element with truncated UUID.
+ * @returns {HTMLElement} A wrapper containing the UUID element and a copy button.
  */
 function truncateUUID(uuid, linkHref) {
     var short = uuid ? uuid.slice(0, 8) + '...' : '';
+    var wrapper = document.createElement('span');
+    wrapper.className = 'uuid-wrapper';
+
     var el;
     if (linkHref) {
         el = document.createElement('a');
@@ -91,5 +94,27 @@ function truncateUUID(uuid, linkHref) {
     el.className = 'uuid';
     el.title = uuid || '';
     el.textContent = short;
-    return el;
+    wrapper.appendChild(el);
+
+    if (uuid) {
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'uuid-copy';
+        copyBtn.title = 'copy full UUID';
+        copyBtn.textContent = '\u2398';
+        copyBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            navigator.clipboard.writeText(uuid).then(function() {
+                copyBtn.textContent = '\u2713';
+                copyBtn.classList.add('uuid-copy--ok');
+                setTimeout(function() {
+                    copyBtn.textContent = '\u2398';
+                    copyBtn.classList.remove('uuid-copy--ok');
+                }, 1200);
+            });
+        });
+        wrapper.appendChild(copyBtn);
+    }
+
+    return wrapper;
 }

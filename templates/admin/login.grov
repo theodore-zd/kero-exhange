@@ -11,13 +11,15 @@
 <div class="auth-container">
     <h1>admin login</h1>
     <div id="error" class="alert alert-error" style="display:none;"></div>
-    <form id="login-form">
-        <div class="form-group">
-            <label for="password">password</label>
-            <input type="password" id="password" name="password" required autofocus />
-        </div>
-        <button type="submit" class="btn btn-primary">login</button>
-    </form>
+    <div class="section-card">
+        <form id="login-form">
+            <div class="form-group">
+                <label for="password">password</label>
+                <input type="password" id="password" name="password" required autofocus />
+            </div>
+            <button type="submit" class="btn btn-primary">login</button>
+        </form>
+    </div>
 </div>
 {% endblock %}
 
@@ -27,6 +29,9 @@ document.getElementById('login-form').addEventListener('submit', async function(
     e.preventDefault();
     var password = document.getElementById('password').value;
     document.getElementById('error').style.display = 'none';
+    var submitBtn = this.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'signing in\u2026';
 
     try {
         var resp = await fetch('/api/v1/admin/login', {
@@ -38,16 +43,22 @@ document.getElementById('login-form').addEventListener('submit', async function(
         if (!resp.ok) {
             var msg = (resp_body.error && resp_body.error.message) || 'login failed';
             showError('error', msg);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'login';
             return;
         }
         if (!resp_body.data || !resp_body.data.token) {
             showError('error', 'login failed: no token in response');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'login';
             return;
         }
         setAdminToken(resp_body.data.token);
         window.location.href = '/admin/dashboard';
     } catch (err) {
         showError('error', 'login failed: network error', err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'login';
     }
 });
 </script>

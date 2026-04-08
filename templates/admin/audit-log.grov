@@ -21,17 +21,38 @@
         <option value="regenerate_passphrase">regenerate_passphrase</option>
         <option value="create_currency">create_currency</option>
         <option value="delete_currency">delete_currency</option>
+        <option value="update_currency">update_currency</option>
+        <option value="update_provider_key">update_provider_key</option>
     </select>
+
+    <label for="entity-type-filter">entity</label>
+    <select id="entity-type-filter">
+        <option value="">all</option>
+        <option value="provider">provider</option>
+        <option value="wallet">wallet</option>
+        <option value="currency">currency</option>
+    </select>
+
+    <label for="start-date-filter">from</label>
+    <input type="date" id="start-date-filter">
+
+    <label for="end-date-filter">to</label>
+    <input type="date" id="end-date-filter">
+
     <button id="apply-filter" class="btn btn-secondary">apply</button>
+    <button id="clear-filter" class="btn btn-secondary">clear</button>
 </div>
 
 <div id="loading">loading&#x2026;</div>
+<div class="section-card">
 <table id="log-table" style="display:none;">
     <thead>
         <tr>
             <th>time</th>
             <th>action</th>
+            <th>type</th>
             <th>entity</th>
+            <th>details</th>
             <th>admin</th>
             <th>ip</th>
         </tr>
@@ -40,6 +61,7 @@
 </table>
 <div id="no-logs" style="display:none;">no audit log entries found</div>
 <div id="pagination"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -47,20 +69,59 @@
 var params = new URLSearchParams(window.location.search);
 var currentPage = parseInt(params.get('page') || '1', 10);
 var currentAction = params.get('action') || '';
+var currentEntityType = params.get('entity_type') || '';
+var currentStartDate = params.get('start_date') || '';
+var currentEndDate = params.get('end_date') || '';
 
 document.getElementById('action-filter').value = currentAction;
+document.getElementById('entity-type-filter').value = currentEntityType;
+document.getElementById('start-date-filter').value = currentStartDate;
+document.getElementById('end-date-filter').value = currentEndDate;
 
-document.getElementById('apply-filter').addEventListener('click', function() {
+function buildFilterURL() {
     var action = document.getElementById('action-filter').value;
+    var entityType = document.getElementById('entity-type-filter').value;
+    var startDate = document.getElementById('start-date-filter').value;
+    var endDate = document.getElementById('end-date-filter').value;
     var url = '?page=1';
     if (action) url += '&action=' + encodeURIComponent(action);
-    window.location.href = url;
+    if (entityType) url += '&entity_type=' + encodeURIComponent(entityType);
+    if (startDate) url += '&start_date=' + encodeURIComponent(startDate);
+    if (endDate) url += '&end_date=' + encodeURIComponent(endDate);
+    return url;
+}
+
+document.getElementById('apply-filter').addEventListener('click', function() {
+    window.location.href = buildFilterURL();
 });
+
+document.getElementById('clear-filter').addEventListener('click', function() {
+    window.location.href = '?page=1';
+});
+
+function formatDetails(details) {
+    if (!details || Object.keys(details).length === 0) return null;
+    var dl = document.createElement('dl');
+    for (var key in details) {
+        if (!details.hasOwnProperty(key)) continue;
+        var dt = document.createElement('dt');
+        dt.textContent = key;
+        var dd = document.createElement('dd');
+        var val = details[key];
+        dd.textContent = (typeof val === 'object') ? JSON.stringify(val) : String(val);
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+    }
+    return dl;
+}
 
 (async function() {
     try {
         var url = '/api/v1/admin/audit-logs?page=' + currentPage;
         if (currentAction) url += '&action=' + encodeURIComponent(currentAction);
+        if (currentEntityType) url += '&entity_type=' + encodeURIComponent(currentEntityType);
+        if (currentStartDate) url += '&start_date=' + encodeURIComponent(currentStartDate);
+        if (currentEndDate) url += '&end_date=' + encodeURIComponent(currentEndDate);
 
         var resp = await adminFetch(url);
         var result = await parseResponse(resp, 'audit-log');
@@ -77,25 +138,84 @@ document.getElementById('apply-filter').addEventListener('click', function() {
         } else {
             logs.forEach(function(l) {
                 var tr = document.createElement('tr');
-                var cells = [
-                    formatDate(l.created_at),
-                    l.action || '—',
-                    null,
-                    l.admin_id || l.admin || '—',
-                    l.ip_address || l.ip || '—'
-                ];
-                cells.forEach(function(val) {
-                    var td = document.createElement('td');
-                    if (val !== null) td.textContent = val;
-                    tr.appendChild(td);
-                });
-                tr.cells[2].appendChild(truncateUUID(l.entity_id || l.entity));
+
+                // time
+                var tdTime = document.createElement('td');
+                tdTime.textContent = formatDate(l.created_at);
+                tr.appendChild(tdTime);
+
+                // action
+                var tdAction = document.createElement('td');
+                tdAction.textContent = l.action || '\u2014';
+                tr.appendChild(tdAction);
+
+                // entity type
+                var tdType = document.createElement('td');
+                if (l.entity_type) {
+                    var badge = document.createElement('span');
+                    badge.className = 'entity-type-badge';
+                    badge.textContent = l.entity_type;
+                    tdType.appendChild(badge);
+                } else {
+                    tdType.textContent = '\u2014';
+                }
+                tr.appendChild(tdType);
+
+                // entity id
+                var tdEntity = document.createElement('td');
+                tdEntity.appendChild(truncateUUID(l.entity_id || ''));
+                tr.appendChild(tdEntity);
+
+                // details
+                var tdDetails = document.createElement('td');
+                var detailsDl = formatDetails(l.details);
+                if (detailsDl) {
+                    var toggle = document.createElement('button');
+                    toggle.className = 'detail-toggle';
+                    toggle.textContent = '\u25B6 show';
+                    var detailsDiv = document.createElement('div');
+                    detailsDiv.className = 'audit-details-inner';
+                    detailsDiv.style.display = 'none';
+                    detailsDiv.appendChild(detailsDl);
+                    toggle.addEventListener('click', (function(div, btn) {
+                        return function() {
+                            if (div.style.display === 'none') {
+                                div.style.display = '';
+                                btn.textContent = '\u25BC hide';
+                            } else {
+                                div.style.display = 'none';
+                                btn.textContent = '\u25B6 show';
+                            }
+                        };
+                    })(detailsDiv, toggle));
+                    tdDetails.appendChild(toggle);
+                    tdDetails.appendChild(detailsDiv);
+                } else {
+                    tdDetails.textContent = '\u2014';
+                }
+                tr.appendChild(tdDetails);
+
+                // admin
+                var tdAdmin = document.createElement('td');
+                tdAdmin.textContent = l.admin_user || '\u2014';
+                tr.appendChild(tdAdmin);
+
+                // ip
+                var tdIp = document.createElement('td');
+                tdIp.textContent = l.ip_address || '\u2014';
+                tr.appendChild(tdIp);
+
                 tbody.appendChild(tr);
             });
             document.getElementById('log-table').style.display = '';
         }
 
-        renderPagination('pagination', meta, { action: currentAction });
+        renderPagination('pagination', meta, {
+            action: currentAction,
+            entity_type: currentEntityType,
+            start_date: currentStartDate,
+            end_date: currentEndDate
+        });
     } catch (err) {
         showError('error', 'failed to load audit log', err);
     } finally {
