@@ -38,12 +38,16 @@ internal/
   config/                  Env-based config (postgres.env, exchange.env)
   crypto/                  Passphrase hashing (bcrypt via x/crypto)
   db/                      Database layer - pgx/pgxpool, models, queries
-  handlers/                HTTP handlers (API JSON + admin web templates)
+  handlers/                HTTP handlers (API JSON + admin/user web templates)
   middleware/              Auth (API key, access token, admin session), rate limiting
     context/               Context key definitions for middleware
   services/                Business logic between handlers and DB
 migrations/                Goose SQL migrations (PostgreSQL)
-templates/                 Go html/template files (base.html + pages)
+templates/                 Grove templates (.grov files)
+  base.grov                Root layout (title, head, nav, content, scripts blocks)
+  admin/                   Admin panel pages (extends admin/base.grov)
+  user/                    User-facing pages (extends user/base.grov)
+  components/              Reusable components (alert, nav, pagination)
 static/                    Plain CSS and JS (no frameworks)
 tests/                     All tests live here (not alongside source)
 scripts/                   Bash build/deploy/migrate scripts
@@ -62,6 +66,7 @@ HTTP Request → chi router → middleware (auth, rate limit) → handler → se
 - **Migrations:** pressly/goose/v3
 - **Precision:** shopspring/decimal (DECIMAL(20,8) for financial amounts)
 - **Auth:** golang.org/x/crypto (bcrypt for passphrases, tokens, API keys)
+- **Templating:** wispberry-tech/grove (Jinja2-like template engine)
 - **Logging:** wispberry-tech/go-common (structured logging)
 - **UUIDs:** google/uuid (all primary keys)
 - **Env loading:** joho/godotenv
@@ -91,7 +96,7 @@ Three auth mechanisms, each as chi middleware:
 | Wallet | User wallet with passphrase_hash, access_token_hash |
 | Currency | Currency definition (code, name, description) |
 | Balance | Wallet-currency pair, DECIMAL(20,8) amount |
-| Transaction | Ledger entry (deposit, withdrawal, transfer) |
+| Transaction | Ledger entry (deposit, withdrawal, transfer, admin_issued); transfer_id links paired debit/credit |
 | Provider | External API provider with hashed API key |
 | ReferenceCode | Single-use signup codes (1hr expiry) |
 | AccessToken | Bearer tokens for user API access |
@@ -101,11 +106,12 @@ Three auth mechanisms, each as chi middleware:
 
 Base path: `/api/v1`
 
-- **Public:** `GET /health`, `POST /api/v1/admin/login`
+- **Public:** `GET /health`, `POST /api/v1/admin/login`, `POST /api/v1/auth/signin`
 - **API Key protected:** `POST /api/v1/providers/reference-codes`, `POST /api/v1/auth/signup`
-- **Access Token protected:** CRUD on `/api/v1/wallets`, `/api/v1/currencies`, `/api/v1/balances`, `/api/v1/transactions`, plus `POST /api/v1/auth/signin`
-- **Admin protected:** Full management under `/api/v1/admin/` (providers, wallets, currencies)
-- **Admin web:** Server-rendered pages under `/admin/` (login, dashboard, CRUD forms)
+- **Access Token protected:** `GET` on `/api/v1/wallets`, `/api/v1/currencies`, `/api/v1/balances`, `/api/v1/transactions`, `GET /api/v1/dashboard`, `POST /api/v1/transfers`
+- **Admin protected:** Full management under `/api/v1/admin/` (providers, wallets, currencies, transactions, audit-logs)
+- **User web:** `GET /signin`, `GET /dashboard` (Grove-rendered, JS-driven)
+- **Admin web:** Server-rendered pages under `/admin/` (login, dashboard, CRUD forms, lookup)
 
 JSON responses use `common.WriteJSONResponse` / `common.WriteJSONError`. Paginated endpoints return `{data: [...], meta: {page, page_size, total, total_pages}}`.
 
@@ -134,10 +140,13 @@ JSON responses use `common.WriteJSONResponse` / `common.WriteJSONError`. Paginat
 
 ### Templates & Static Assets
 
-- Go `html/template` with `templates/base.html` as layout.
-- Pages extend base via `{{define "content"}}` blocks.
-- Plain CSS in `static/css/`, plain JS in `static/js/` (no build tools or frameworks).
-- JS handles auth token storage (localStorage) and API calls.
+- **Grove** template engine (`wispberry-tech/grove`) with Jinja2-like syntax (`.grov` files).
+- Block inheritance: `{% extends "path" %}`, `{% block name %}...{% endblock %}`.
+- Component inclusion: `{% component "path" %}...{% endcomponent %}`, `{% props var1, var2 %}`.
+- Variable interpolation: `{{ variable }}`, conditionals: `{% if condition %}...{% endif %}`.
+- Layout hierarchy: `base.grov` → `admin/base.grov` or `user/base.grov` → page templates.
+- Plain CSS in `static/css/main.css`, plain JS in `static/js/` (no build tools or frameworks).
+- JS files: `app.js` (user auth/dashboard), `admin.js` (admin panel), `utils.js` (shared helpers).
 
 ## Environment Configuration
 
@@ -148,9 +157,10 @@ Two env files required (see `*.env.example` for templates):
 - `GOOSE_DRIVER=postgres`, `GOOSE_DBSTRING` - for migrations
 
 **exchange.env** - Application config:
-- `ADMIN_PASSWORD` (required) - Admin login password
+- `ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH` (one required) - Admin login credentials
 - `PORT` (default: 8080), `LOG_LEVEL` (default: info)
 - `DEFAULT_CURRENCY_CODE` (default: USD), `DEFAULT_CURRENCY_NAME`, `DEFAULT_CURRENCY_DESCRIPTION`
+- `SEED_MODE` (optional, `"true"` to enable) - Seeds test wallets, provider, and balances on startup
 
 ## Things to Know
 
